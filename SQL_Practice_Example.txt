@@ -1,1 +1,2300 @@
-My SQL Work is all stored in Google Big Query – This is a text file holding some examples of SQL I have done and does not represent my entire catalog of experience.---------------------------------------------------------------------------------------------------------# Using COALESCE to substitute in values for NULL VALUES-- Notice when we use ROLLUP() the null values that occured for various subtotals and grand total--We can use COALESCE to insert values for those NULL values to improve the output-- We also need to use the CAST function to convert order_num and order_item to strings------CAST converts columns into a specified data type------ we need to convert order_num and order_item to strings because COALESCE only works on string values---------------------------------------------------------------------------------------------------------/*SELECTCOALESCE(CAST(order_num AS STRING),'ovTotal') AS ordernum,COALESCE(CAST(order_item AS STRING),'ordTot') AS orderitem,sum(quantity) as totQTYFROM`mfirst-360300.styssql.order_items`GROUP BY  ROLLUP (  order_num,  order_item)ORDER BYorder_num,order_item*/SELECTCOALESCE(category,'HELLO') AS cat,SUM(purchases)FROM`mfirst-360300.mydb.Produce`GROUP BYcategory;------------------------------------------------------------------------------- COALESCE to get rid of nulls^^SELECTsum(confirmed_cases) OVER (  PARTITION BY county_name  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as case_by_county,sum(deaths) OVER (  PARTITION BY county_name  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as death_by_county,county_nameFROM`mfirst-360300.mydb.dm_covid19`WHERE date = '2022-10-01'ORDER BYcase_by_county DESC-----------------------------------------------------------------------------------------------------------------------------------------------------------  #create customer tables for SimpleCo dataset  ----------------------------------------------------------------------------------------------------/*CREATE OR REPLACE TABLE  `mfirst-360300.SimpleCo.CUSTOMER`(CUST_NUM INT64,CUST_LNAME STRING,CUST_FNAME STRING,CUST_BALANCE FLOAT64)*/  ----------------------------------------------------------------------------------------------------  #create invoice tables for SimpleCo dataset  ----------------------------------------------------------------------------------------------------/*CREATE OR REPLACE TABLE  `mfirst-360300.SimpleCo.INVOICE`(INV_NUM INT64,CUST_NUM INT64,INV_DATE DATE,INV_AMOUNT FLOAT64)*/  ----------------------------------------------------------------------------------------------------  #using, CREATE TABLE, make some tables in the 'mydb' dataset  #using, ALTER TABLE, make changes to an existing table  #using, DROP TABLE, delete tables  ----------------------------------------------------------------------------------------------------  #first lets create a customer table for mydb  /*CREATE TABLE  `mfirst-360300.mydb.customer`(custID INT64 NOT NULL,custFname STRING NOT NULL,custLname STRING NOT NULL,custEmail STRING,custBalance INT64);*/  ----------------------------------------------------------------------------------------------------  #now lets create an invoice table for mydb  /*CREATE TABLE  `mfirst-360300.mydb.invoice`(invNumber INT64 NOT NULL,custID INT64 NOT NULL,invDate DATE NOT NULL,)*/  -----------------------------------------------------------------------------------------------------------  #Now, lets use, ALTER TABLE, to add a custPhone to the customers table  --note: most dbms dont allow to delete columns once created  /*ALTER TABLE`mfirst-360300.mydb.custCopy`ADD COLUMNcust_phone STRING*/  #BigQuery lets us add a description to the table as well  --Note: we can also do this through the BigQuery GUI  /*ALTER TABLE`mfirst-360300.mydb.custCopy`SET OPTIONS(description = 'This is the tutorial table for DDL statements in BigQuery')*/  # DROP COLUMN  --Note: most dbms dont allow to delete columns once created  --Note: most table changes can't be undone so make sure you're certain  /*ALTER TABLE`mfirst-360300.mydb.custCopy`DROP COLUMNcust_phone*/  -----------------------------------------------------------------------------------------------------------  # Creating table from another table with a query  --Note: You can do this with BigQuery public data as well  -----------------------------------------------------------------------------------------------------------  /*CREATE TABLE`mfirst-360300.mydb.custCopy2`ASSELECT*FROM`mfirst-360300.styssql.customers`*/  -----------------------------------------------------------------------------------------------------------  # DROP TABLE: Now lets delete a tables(s)  --Note: always use caution while doing this  --the following will start us from. scratch in the mydb dataset  -----------------------------------------------------------------------------------------------------------  /*DROP TABLE`mfirst-360300.mydb.custCopy2`*/  -----------------------------------------------------------------------------------------------------------  # modify the VENDORS table in your mydb dataset to include a new column, vend_web, that will store the vendors website as a STRING  -----------------------------------------------------------------------------------------------------------  /*ALTER TABLEmydb.VENDORSADD COLUMNvend_web STRING*//* Q1: what are the total product sales and employee contribution to product sales? */WITH prodSummaryAS#CTE(SELECTline.P_CODE,SUM(line.LINE_UNITS*line.LINE_PRICE) as pSales,  (SELECT COUNT (EMP_NUM) FROM `mfirst-360300.SaleCo.employee`) AS eCountFROM`mfirst-360300.SaleCo.line` as lineGROUP BYP_CODE)SELECT prodSummary.P_CODE,prodSummary.pSales,prodSummary.eCount,-- total product sales (can't do with in line view)ROUND((SELECT SUM(prodSummary.pSales) FROM prodSummary),2) as total_sales,ROUND((prodSummary.pSales / prodSummary.eCount),2) AS eContribFROMprodSummaryORDER BYpSales DESC/*--#1ALTER TABLE`mfirst-360300.mydb.dw_covid19`ADD COLUMNtimeZone STRING;*//*--#2UPDATEmydb.dw_covid19SETtimeZone =CASEWHEN state IN ('CO','MT','NM','UT','WY','AZ') THEN 'Mountain'WHEN  state in ('CA','NV','OR','WA') THEN 'Pacific'ELSE 'Other'ENDWHERE   timeZone IS NULL*//*--#3SELECTSUM(confirmed_cases) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases,SUM(deaths) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths,ROUND((SUM(confirmed_cases) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM (population)OVER())*100000,2) as cases_per_100k,ROUND((SUM(deaths) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM(population)OVER())*100000,2) as death_per_100k,SUM(population) OVER() as tot_popFROM`mfirst-360300.mydb.dw_covid19`WHEREdate = '2020-11-20'*//*SELECTdate,population,confirmed_casesFROM`mfirst-360300.mydb.dw_covid19`ORDER BYdate ASC*/--#5/*SELECT DISTINCTSUM(confirmed_cases) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases,SUM(deaths) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths,ROUND((SUM(confirmed_cases) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM (population)OVER(partition by timeZone))*100000,2) as cases_per_100k,ROUND((SUM(deaths) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM(population)OVER(partition by timeZone))*100000,2) as death_per_100k,SUM(population) OVER(partition by timeZone) as tot_pop,timeZoneFROM`mfirst-360300.mydb.dw_covid19`WHERE date = '2022-2-1'ORDER BYcases_per_100k DESC*//*SELECTSUM(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases_by_state,SUM(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths_by_state,ROUND(AVG(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),2) as avg_cases_by_state,ROUND(AVG(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),2) as avg_deaths_by_state,SUM(population) OVER(partition by state) as tot_pop,timeZoneFROM`mfirst-360300.mydb.dw_covid19`WHERE date = '2022-4-1'ANDstate IN ('CO','CA');SELECTSUM(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases_by_state,SUM(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths_by_stateFROM`mfirst-360300.mydb.dm_covid19`WHERE date = '2022-4-1'ORDER BYtot_cases_by_state DESC#CREATE VIEWS----------------------------------------------------------------------------------------------------------------#using, CREATE VIEW, make some views in our styssql dataset----------------------------------------------------------------------------------------------------------------#first write a query that will filter out certain products#QUESTION: who are all the customers that ordered a certain product?-- for this example, who ordered product of id 'RG'/*SELECTcust.cust_name,cust.cust_contactFROM`mfirst-360300.styssql.customers` AS custINNER JOIN`mfirst-360300.styssql.orders` AS ordONcust.cust_id = ord.cust_idINNER JOIN`mfirst-360300.styssql.order_items` as ordION ord.order_num = ordI.order_numWHEREordI.prod_id = 'RGAN01'*/----------------------------------------------------------------------------------------------------------------#Now let's create a view that will allow us to simplify the process of filtering products-- filtering out specific products will likely be a common request-- we can create a view based on the "guts" of the previous query and then make updates to the WHERE statement----------------------------------------------------------------------------------------------------------------#creating a view to join products to orders to order items--Note: BigQuery requires us to use the project id to define our tables when creating a view----------------------------------------------------------------------------------------------------------------/*CREATE VIEW`mfirst-360300.styssql.prodCustJoin`ASSELECTcust.cust_name,cust.cust_contact,ordI.prod_idFROM`mfirst-360300.styssql.customers` AS custINNER JOIN`mfirst-360300.styssql.orders` AS ordONcust.cust_id = ord.cust_idINNER JOIN`mfirst-360300.styssql.order_items` as ordION ord.order_num = ordI.order_num*/----------------------------------------------------------------------------------------------------------------#Now let's look at why creating a view can be beneficial--QUESTION: Who are all the customers that ordered product 'RGAN01'?--Using a view we reduce the query down to a few lines----------------------------------------------------------------------------------------------------------------/*SELECT*FROM`mfirst-360300.styssql.prodCustJoin` as prodviewWHEREprodview.prod_id = 'RGAN01'*/----------------------------------------------------------------------------------------------------------------#another use case for view, reformatting data-- adding a new field that combines vendor name and country--instead of always using a concat() statement we can create a view----------------------------------------------------------------------------------------------------------------/*CREATE VIEW`mfirst-360300.styssql.vendLocations`ASSELECT*,concat(trim(vend_name),' (',trim(vend_country), ')') as vendLocFROM`mfirst-360300.styssql.vendors` as vend;*//*see what happened*//*SELECT*FROM`mfirst-360300.styssql.vendLocations`*/----------------------------------------------------------------------------------------------------------------#Views can also be helpful to filter out unwanted data--instead of always having to type the same WHERE statements, we can create a view#TASK: create a view to filter out null email values--null emails are obviously not desired for a distribution list----------------------------------------------------------------------------------------------------------------/*CREATE VIEW`mfirst-360300.styssql.custemaillist`ASSELECT*FROM`mfirst-360300.styssql.customers` as custWHERE cust.cust_email IS NOT NULL*//*SELECT *FROM `mfirst-360300.styssql.custemaillist`*/----------------------------------------------------------------------------------------------------------------#another use for views: calculated fields--instead of always having to type the same fields, make a view#TASK: create a view to calculate the total cost per item----------------------------------------------------------------------------------------------------------------/*CREATE VIEW`mfirst-360300.styssql.totCost`ASSELECT*,round((ordI.quantity * ordI.item_price),2) as totCostFROM`mfirst-360300.styssql.order_items` as ordI*//*SELECT*FROM`mfirst-360300.styssql.totCost`*//* Midterm Notes*//*`bigquery-public-data.ncaa_basketball.mbb_teams`*/              /* MBB Teams *//*`bigquery-public-data.ncaa_basketball.mascots`*/               /*  Basketball Mascots  *//*`bigquery-public-data.usa_names.usa_1910_2013`*/              /*   USA NAMES        *//*`bigquery-public-data.noaa_icoads.icoads_core_2017`*/         /*   NOAA ICOADS    *//*`mfirst-360300.styssql.customers`*/       /*   STYS CUST     *//*`mfirst-360300.SaleCo.customer`*/         /*   SALECO        */  /*`mfirst-360300.ConstructCo.assignment`*/  /*   CONSTRUCTCO   */#Q1/*SELECTCOUNT(mascot) as tot,mascot_common_nameFROM`bigquery-public-data.ncaa_basketball.mascots`GROUP BYmascot, mascot_common_nameORDER BYtot DESC*/#Question 2/*SELECT DISTINCTvenue_address,venue_capacityFROM`bigquery-public-data.ncaa_basketball.mbb_teams`GROUP BYvenue_address, venue_capacityHAVINGvenue_capacity > 20000ORDER BYvenue_capacity DESC*/#question 3/*SELECTstate,sum(number) as sums,name,genderFROM`bigquery-public-data.usa_names.usa_1910_2013`GROUP BYname,state,year,genderHAVINGyear IN (1910,1911,1912,1913)ANDstate = 'CO'ANDgender = 'M'ANDname = 'John'ORDER BYsums DESC*/#Question 4/*SELECTSUM(EMP_YEARS) as totYears,COUNT(EMP_LNAME) as totEMP,ROUND((SUM(EMP_YEARS)/3),2) as avgYears,EMP_LNAMEFROM`mfirst-360300.ConstructCo.employee`GROUP BYEMP_LNAME,EMP_YEARSHAVINGEMP_LNAME LIKE "Jo%";SELECTEMP_YEARS,EMP_LNAMEFROM`mfirst-360300.ConstructCo.employee`WHEREEMP_LNAME = 'Joenbrood'OREMP_LNAME = 'Jones'OREMP_LNAME = 'Johnson'*/#Question 5/*SELECT  ROUND(AVG(air_temperature),2) moAvgTemp,  month,(SELECTROUND(AVG(air_temperature),2)FROM`bigquery-public-data.noaa_icoads.icoads_core_2010`) as ovAvgTempFROM  `bigquery-public-data.noaa_icoads.icoads_core_2010`  GROUP BYmonthHAVINGmoAvgTemp > ovAvgTempORDER BYmoAvgTemp DESC*/#Question 6/*SELECT DISTINCTvend.V_CODE,vend.V_NAME,vend.V_CONTACT,prod.P_QOH,prod.P_CODE,prod.P_DESCRIPT,vend.V_ORDERFROM`mfirst-360300.SaleCo.product` as prodINNER JOIN`mfirst-360300.SaleCo.vendor` as vendONprod.V_CODE = vend.V_CODEINNER JOIN`mfirst-360300.SaleCo.line` as lineONline.P_CODE = prod.P_CODEWHEREprod.P_QOH > 0ANDvend.V_ORDER = FALSEORDER BYprod.P_QOH DESC*/#question 7/*CREATE VIEW`mfirst-360300.ConstructCo.zaidsview`ASSELECTSUM(ASSIGN_CHARGE) as chrgbyProjectandEmp,proj.PROJ_NUM,emp.EMP_NUM,emp.EMP_LNAMEFROM`mfirst-360300.ConstructCo.assignment` as assINNER JOIN`mfirst-360300.ConstructCo.employee` as empONass.EMP_NUM = emp.EMP_NUMINNER JOIN`mfirst-360300.ConstructCo.project` as projON ass.PROJ_NUM = proj.PROJ_NUMGROUP BYproj.PROJ_NUM,emp.EMP_NUM,emp.EMP_LNAMEHAVINGproj.PROJ_NUM IN (22,25)ORDER BYemp.EMP_NUM ASC;SELECTSUM(chrgbyProjectandEmp)FROM`mfirst-360300.ConstructCo.zaidsview`WHEREPROJ_NUM = 25*//*`mfirst-360300.styssql.order_items`*//*`mfirst-360300.SaleCo.customer`*//*`mfirst-360300.ConstructCo.assignment`*//*`mfirst-360300.mydb.dm_covid19`*//*`mfirst-360300.mydb.dw_covid19`*/--three main bi reporting styles--Advanced reporting, Monitoring and alerting, Advanced data analytics --What does the acronym MDM represent?  -- MASTER DATA MANAGEMENT--What are the three major ways operational data differs from decision support data from a data analyst's perspective?--Time span, Granularity, Dimensionality--What does the acronym ETL represent?--Extraction , Transformation , Loading--What are the four main characteristics of a data warehouse?--Integrated, Subject-oriented , Time-variant , Nonvolatile/*SELECToi.order_num,sum(oi.quantity) OVER() as comp_total_quantity,sum(oi.quantity) OVER(PARTITION BY oi.order_num) as ord_tot,avg(oi.quantity) OVER() as cAVG_quantityFROM`mfirst-360300.styssql.order_items` as oiINNER JOIN`mfirst-360300.styssql.products` as prodONprod.prod_id = oi.prod_id*//*SELECTprod.P_CODE,prod.P_DESCRIPT,prod.P_QOH,vend.V_CODE,vend.V_NAME,vend.V_CONTACT,AVG(prod.P_QOH) OVER() as avgProdInventory,AVG(prod.P_QOH) OVER()-prod.P_QOH as invAvgDiff,FROM`mfirst-360300.SaleCo.product` as prodINNER JOIN`mfirst-360300.SaleCo.vendor` as vendONvend.V_CODE = prod.V_CODEORDER BYinvAvgDiff DESC*//*CREATE OR REPLACE TABLE   `mydb.nyc_citibike_trips`  ASSELECT   start_station_name,  end_station_name,  gender,  birth_year,  tripdurationFROM   `bigquery-public-data.new_york.citibike_trips`  *//*  SELECT  *  FROM  `mydb.nyc_citibike_trips`*//*SELECTboroname,COUNT(tree_id) OVER(PARTITION BY borocode) as boro_tot,COUNT(tree_id) OVER() as GRAND_TOTAL,ROUND((SELECT COUNT(status)OVER() FROM `bigquery-public-data.new_york_trees.tree_census_2015` WHERE status = 'Dead')/COUNT(tree_id) OVER())*100,2 as percent_dead,AVG(stump_diam) OVER (PARTITION BY borocode) as average_diamFROM`bigquery-public-data.new_york_trees.tree_census_2015`*/-----------------------------------------------------------------------------------------------------------------------------------------------------------------FINAL EXAM PART 2 (Class Databases)-----------------------------------------------------------------------------------------------------------------------------------------------------------------QUESTION 1SELECTinv.CUS_CODE as customer, cust.CUS_LNAME,SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER() as overall_revenue,SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER(PARTITION BY inv.CUS_CODE) as cust_rev,SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER(PARTITION BY inv.INV_NUMBER) as invoice_revFROM`mfirst-360300.SaleCo.line` as linINNER JOIN`mfirst-360300.SaleCo.invoice` as invONlin.INV_NUMBER = inv.INV_NUMBERINNER JOIN`mfirst-360300.SaleCo.customer` as custONcust.CUS_CODE = inv.CUS_CODEORDER BYinvoice_rev DESC, cust.CUS_LNAME ASC;--QUESTION 2/*SELECT DISTINCTcust.CUS_CODE,cust.CUS_LNAME,COUNT(inv.INV_NUMBER) OVER(PARTITION BY inv.CUS_CODE) as invoices,(SELECT CUS_LNAME FROM `mfirst-360300.SaleCo.customer` as cust INNER JOIN `mfirst-360300.SaleCo.invoice` as inv ON inv.CUS_CODE = cust.CUS_CODE WHERE inv.INV_NUMBER IS NULL)FROM`mfirst-360300.SaleCo.invoice` as inv,INNER JOIN`mfirst-360300.SaleCo.customer` as custONcust.CUS_CODE = inv.CUS_CODEORDER BYcust.CUS_LNAME ASC;*/SELECTCUS_LNAME, CUS_CODEFROM`mfirst-360300.SaleCo.customer`ORDER BYCUS_LNAME ASC;SELECTCOUNT(inv.INV_NUMBER) OVER() as invoicesFROM`mfirst-360300.SaleCo.invoice` as invINNER JOIN`mfirst-360300.SaleCo.customer` as custONcust.CUS_CODE = inv.CUS_CODEWHERE CUS_LNAME = 'Ramas';--QUESTION 3SELECTproj.PROJ_NUM,proj.PROJ_NAME,ass.ASSIGN_NUM,ass.EMP_NUM,ass.ASSIGN_CHARGE,--SUM(ass.ASSIGN_CHARGE) OVER () as indv_assign_chrg,SUM(ass.ASSIGN_CHARGE) OVER (PARTITION BY proj.PROJ_NUM) as proj_assign_chrg,SUM(ass.ASSIGN_CHARGE) OVER (ORDER BY proj.PROJ_NUM ASC, ASSIGN_NUM ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as proj_running_chrg,FROM`mfirst-360300.ConstructCo.assignment` as assINNER JOIN`mfirst-360300.ConstructCo.project` as projON proj.PROJ_NUM = ass.PROJ_NUMORDER BYproj.PROJ_NUM ASC,ASSIGN_NUM ASC;-----------------------------------------------------------------------------------------------------------------------------------------------------------------FINAL EXAM PART 3 (BIGQUERY PUBLIC DATA)-----------------------------------------------------------------------------------------------------------------------------------------------------------------QUESTION 1SELECT DISTINCTcountry,COUNT(object_id) OVER(PARTITION BY country) as airports_w_1FROM`bigquery-public-data.faa.us_airports`ORDER BYairports_w_1 ASC;--QUESTION 2SELECT DISTINCTROUND(AVG(value) OVER(PARTITION BY period),2),period,yearFROM`bigquery-public-data.bls.employment_hours_earnings`WHEREyear = 2018ANDperiod = 'M04';--QUESTION 3SELECT  ROUND(AVG(air_temperature),2) moAvgTemp,  month,(SELECTROUND(AVG(air_temperature),2)FROM`bigquery-public-data.noaa_icoads.icoads_core_2015`) as ovAvgTempFROM  `bigquery-public-data.noaa_icoads.icoads_core_2015`  GROUP BYmonthHAVINGmoAvgTemp > ovAvgTempORDER BYmoAvgTemp DESC;--QUESTION 4 and 5SELECT DISTINCTSUM(awayFinalRuns + homeFinalRuns) OVER (PARTITION BY venueName) as tot_runs,SUM(awayFinalHits + homeFinalHits) OVER (PARTITION BY venueName) as tot_hits,SUM(awayFinalHits + homeFinalHits) OVER () as grand_tot_hits,SUM(awayFinalRuns + homeFinalRuns) OVER ()/ SUM(awayFinalHits + homeFinalHits) OVER () as run_to_hit_GT, venueName,FROM`bigquery-public-data.baseball.games_wide`WHERE --venueName NOT IN ('Rogers Centre','Coors Field','Fenway Park','Great American Ball Park','Angel Stadium')venueName IN ('Target Field')ORDER BYtot_hits DESC/*SELECT DISTINCTp.name, LENGTH (p.name) as fFROM `bigquery-public-data.usa_names.usa_1910_current` as pWHEREp.name LIKE "%en" ORDER BY f DESC, p.name ASC *//*SELECT CONCAT(p.name,'-',p.state, '-',p.year,'-',p.number) as fFROM `bigquery-public-data.usa_names.usa_1910_current` as pWHERE p.state LIKE "CO"ORDER BY f ASC*//*SELECT * FROM `movies` GROUP BY `category_id`,`year_released` HAVING `category_id` = 8; *//*SELECT prod.vend_id, AVG( prod.prod_price) as avgOver4FROM`styssql.products` as prodWHERE prod.prod_price > 4GROUP BY prod.vend_idHAVING avgOver4 > 9*//*SELECTrecalling_firm, COUNT (recall_number) as recallsFROM`bigquery-public-data.fda_drug.drug_enforcement`GROUP BYrecalling_firmORDER BYrecalls DESC*//*SELECT classification,EXTRACT (month FROM report_date) as Month, COUNT (recall_number) as recallsFROM`bigquery-public-data.fda_drug.drug_enforcement`GROUP BYMonth,classificationORDER BYclassification ASC,Month ASC*//*SELECT *FROM`bigquery-public-data.noaa_icoads.`*//*INSERT INTO `mfirst-360300.styssql.custNew` ( cust_id, cust_name, cust_address, cust_city, cust_state, cust_zip, cust_country, cust_contact, cust_email ) VALUES  (   1234,   'Toy Land',   '123 anywhere ln',   'New York',   'NY',   22222,   'USA',   NULL,   NULL ) ; */ #insert multiple records/* INSERT INTO `mfirst-360300.styssql.custNew` (cust_id,cust_name) VALUES (1,'Toy1'), (2,'Toy2'), (3,'Toy3') ; */--------------------------------------------------------------------------------------------------------------------------------- #inserting data with a query---------------------------------------------------------------------------------------------------------------------------------#task: insert the new customers from custNew into the customers styssl customers table/*INSERT INTO `mfirst-360300.styssql.customers` ( cust_id, cust_name, cust_address, cust_city, cust_state, cust_zip, cust_country, cust_contact, cust_email ) SELECT cust_id, cust_name, cust_address, cust_city, cust_state, cust_zip, cust_country, cust_contact, cust_email FROM `mfirst-360300.styssql.custNew` */---------------------------------------------------------------------------------------------------------------------------------#updating data with UPDATE SET WHERE---------------------------------------------------------------------------------------------------------------------------------#first, update the city for cust_id 1 and cust_id 2 to have a city of Denver and state of CO/*UPDATE `mfirst-360300.styssql.customers` as custSETcust.cust_city = 'Denver',cust.cust_state = 'CO'WHEREcust_id IN (1,2)*/#now update the city for cust_id 3 to have a city of Amarillo and state of TX/*UPDATE`mfirst-360300.styssql.customers`SETcust_city = 'Amarillo',cust_state = 'TX'WHEREcust_id IN (3)*/---------------------------------------------------------------------------------------------------------------------------------#copying from one table to another#Insert Into appends data to an existing table#But if we want to make a table from an existing table we use, CREATE TABLE---------------------------------------------------------------------------------------------------------------------------------/*CREATE TABLE  `mfirst-360300.styssql.custCopy` /*create name of new table*//*AS SELECT*FROM`mfirst-360300.styssql.customers`;*/------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#Deleting data from tables#Task: delete the new customers we added to customers earlier/*DELETEFROM`mfirst-360300.styssql.custCopy`WHEREcust_id IN (1,2,3,1234);*//*CREATE TABLEmydb.VENDORS(vend_id STRING,vend_name STRING,vend_address STRING,vend_city STRING,vend_state STRING,vend_country STRING);*/--------------------------------------------------------------------------------------------------------------------#make VENDORS table from vendors styssql--------------------------------------------------------------------------------------------------------------------/*INSERT INTO `mfirst-360300.mydb.VENDORS`(vend_id,vend_name,vend_address,vend_city,vend_state,vend_country)SELECTvend_id,vend_name,vend_address,vend_city,vend_state,vend_countryFROM`mfirst-360300.styssql.vendors`*/--------------------------------------------------------------------------------------------------------------------# Insert a website for the vendor with id of 'BRS01'. --The websites for each vendor should be the vendors name plus '@bigquery.com'----Remove spaces in the vendor name when you concatenate the strings--------------------------------------------------------------------------------------------------------------------UPDATE   `mfirst-360300.mydb.VENDORS`SET  vend_web = CONCAT(REPLACE(vend_name, ' ',''),'@bigquery.com')WHERE  vend_id = 'BRS01'  /*SELECTlist.artist_name, count(listened_at) as listensFROM`listenbrainz.listenbrainz.listen` as listGROUP BYlist.artist_name,list.track_name,HAVINGlist.artist_name = 'Mariah Carey'*/ /*SELECTcount(hi.listened_at) AS INT,hi.user_name,hi.artist_name,FROM`listenbrainz.listenbrainz.listen` as hiGROUP BYhi.user_name,hi.artist_nameHAVING hi.artist_name =(SELECTlist.artist_nameFROM`listenbrainz.listenbrainz.listen` as listGROUP BYlist.artist_nameHAVINGlist.artist_name = 'Mariah Carey')*/ /*SELECTlist.user_name, cast(count(listened_at) AS INT64) as hello ,list.artist_nameFROM`listenbrainz.listenbrainz.listen` as listGROUP BYlist.user_nameHAVINGlist.artist_name = (SELECTlist.artist_nameFROM`listenbrainz.listenbrainz.listen` as listWHERElist.artist_name = 'Mariah Carey')*//*SELECT  DISTINCT COUNT(list.user_name) AS users,  list.artist_name AS artFROM  `listenbrainz.listenbrainz.listen` AS listGROUP BY  artHAVING  art = 'Mariah Carey'  */  SELECT *  FROM  `listenbrainz.listenbrainz.listen`  LIMIT 10;----------------------------------------------------------------------------------------------------------CREATE OR REPLACE TABLE`mfirst-360300.mydb.Produce`(item STRING,category STRING,purchases INT64);-----------------------------------------------------------------------------Creating a table^^INSERT INTO `mfirst-360300.mydb.Produce`(item,category,purchases)VALUES('kale', 'vegetable',23),('banana','fruit',2),('cabbage','vegetable', 9),('apple','fruit',8),('leek','vegetable',2),('lettuce','vegetable',10);-----------------------------------------------------------------------------Inserting Values into a table-- Q1. What are the total produce purchases?  SELECT    item,    category,    purchases,    SUM(purchases) OVER() AS total_purchases  FROM    `mfirst-360300.mydb.Produce`;-----------------------------------------------------------------------------Window function over all rows^^--Q2. What are the category total purchases as well as grand total for all purchases?SELECT  item,  category,  purchases,  SUM(purchases) OVER () AS Grand_Total,  SUM(purchases)   OVER (    PARTITION BY category -- used for subtotals |how to group the rows for SUM()|    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING-- what rows to include in the calculation       ) AS Category_PurchasesFROM`mfirst-360300.mydb.Produce`ORDER BYCategory_Purchases;---------------------------------------------------------------Partition By and row specification (subtotals)^^-- Q3. What is the running total purchases for each product category?SELECTitem,category,purchases,SUM(purchases)OVER(  PARTITION BY category -- splits function by category  ORDER BY category, purchases -- order by ensures running total starts at lowest purchase amount  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW -- running totals want current row and unbounded preceding    ) AS running_totalFROM`mfirst-360300.mydb.Produce`;--------------------------------------------------------------------------- Running totals^^SELECTSUM(purchases)FROM`mfirst-360300.mydb.Produce`;--------------------------------------------------------------------------- Im not really sure (ignore)^^-- Q4. What is the product revenue for each order item, subtotal revenue for each product, and the grand total revenue? (styssql)SELECTprod.prod_id,ord.quantity,ord.order_item,ord.order_num,ord.item_price,ROUND(ord.quantity * ord.item_price,3) as item_revenue,SUM(ord.quantity * ord.item_price)OVER(PARTITION BY prod.prod_id) AS prod_total_revenue,SUM(ord.quantity * ord.item_price) OVER() AS total_revenueFROM`mfirst-360300.styssql.products` as prodINNER JOIN`mfirst-360300.styssql.order_items` as ordON ord.prod_id = prod.prod_idORDER BYprod_id, order_item;--------------------------------------------------------------------------- Styssql Windows practice^^SELECT  *FROM  `mfirst-360300.mydb.dm_covid19`WHERE  date = '2022-10-01'ORDER BY  confirmed_cases DESC;-----------------------------------------------------------------------------------------------------# Q: Which counties in Colorado are above or below the average number of county cases?-- We will feature enginner a column, Avg_Flag, to mark counties as 'Above Avg' or 'Below Avg' total cases ---------------------------------------------------------------------------------------------------------SELECT  state,  county_name,  confirmed_cases,  -- Subquery to calculate the average cases across counties   ROUND((SELECT AVG(confirmed_cases) FROM `mfirst-360300.mydb.dm_covid19` WHERE date = '2022-10-01')        ,2) as avgCases,       -- Case statement to create the Avg_Flag Column     CASE      WHEN confirmed_cases >      (SELECT AVG(confirmed_cases) FROM `mfirst-360300.mydb.dm_covid19` WHERE date = '2022-10-01')       THEN 'Above Avg'       ELSE 'Below Avg'  -- We don't need to repeat the subquery here we can just use ELSE    END AS Avg_Flag    FROM  `mfirst-360300.mydb.dm_covid19` WHERE  date = '2022-10-01'GROUP BY  state,  county_name,  confirmed_casesORDER BY  county_name ;------------------------------------------------------------------------------------------------------------- To look at a small 14 day window for Boulder County...-- 7 day avg cases-----------------------------------------------------------------------------------------------------------SELECTcounty_name,date,dailyCases,ROUND(AVG(dailyCases) OVER(county_ma7),2) AS _7dayAvg_DailyCases,dailyDeaths,ROUND(AVG(dailyDeaths) OVER(county_ma7),2) AS _7dayAvg_DailyDeathsFROM`mfirst-360300.mydb.dm_covid19` as coWHEREcounty_name = 'Boulder County ' AND date between '2022-2-1' AND '2022-2-15'WINDOWcounty_ma7 AS(PARTITION BY county_name ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW);/* Subquery notes *//*What are the customer ids that ordered a product id of "RGAN01"*//* How do we find all the products with a product id of "RGAN01"*//*SELECToi.order_numFROM`mfirst-360300.styssql.order_items` as oiWHEREoi.prod_id = "RGAN01"*//* what customers are associated with the products from the previous query?*//*SELECTod.cust_idFROM`mfirst-360300.styssql.orders` as odWHEREod.order_num in (20008, 20007)*//* do it better *//*SELECTod.cust_idFROM`mfirst-360300.styssql.orders` as odWHEREod.order_num IN /*include subquery to filter data*//*(SELECToi.order_numFROM`mfirst-360300.styssql.order_items` as oiWHEREoi.prod_id = "RGAN01")*//*SELECTcust.cust_id,cust.cust_name as nameFROM`mfirst-360300.styssql.customers` as custWHEREcust.cust_id IN     (SELECT    od.cust_id    FROM    `mfirst-360300.styssql.orders` as od    WHERE    od.order_num IN            (              SELECT              oi.order_num                      FROM              `mfirst-360300.styssql.order_items` as oi              WHERE              oi.prod_id = "RGAN01"            )                                )*//* JOINS *//*SELECTcust.cust_id, cust.cust_name,cust.cust_address,cust.cust_city,ord.order_num,ord.order_dateFROM`mfirst-360300.styssql.customers` as cust,`mfirst-360300.styssql.orders` as ord/* one way to create a join is in the where clause*//*WHEREcust.cust_id = ord.cust_id*//*SELECTcust.cust_id, cust.cust_name,cust.cust_address,cust.cust_city,ord.order_num,ord.order_dateFROM`mfirst-360300.styssql.customers` as custINNER JOIN`mfirst-360300.styssql.orders` as ordONcust.cust_id = ord.cust_idWHEREcust_name = "Village Toys"*/                                            /*                                            SELECT                                            COUNT (vend.vend_id),vend.vend_name                                            FROM                                            `mfirst-360300.styssql.vendors` as vend                                            INNER JOIN                                            `mfirst-360300.styssql.products` as prod                                            ON                                            vend.vend_id = prod.vend_id                                            GROUP BY                                            (                                            SELECT                                            prod.vend_id,oi.prod_id, AVG (oi.quantity)                                            FROM                                            `mfirst-360300.styssql.products` as prod                                            INNER JOIN                                            `mfirst-360300.styssql.order_items` as oi                                            ON                                            prod.prod_id = oi.prod_id                                            GROUP BY                                            prod.vend_id, oi.prod_id, oi.quantity                                            )                                            *//*SELECTvend.vend_id, vend.vend_name, prod.prod_id, prod.prod_nameFROM`mfirst-360300.styssql.vendors` as vendINNER JOIN`mfirst-360300.styssql.products` as prodONvend.vend_id = prod.vend_idGROUP BYvend.vend_id,vend.vend_name,prod.prod_id,prod.prod_name*//*SELECTcust.cust_id, oi.prod_idFROM`mfirst-360300.styssql.customers` custLEFT JOIN`mfirst-360300.styssql.orders` as od  ON cust.cust_id = od.cust_idLEFT JOIN`mfirst-360300.styssql.order_items` as oi  ON od.order_num = oi.order_numWHEREoi.prod_id = 'BR01' INTERSECT DISTINCTSELECTod.cust_id, oi.prod_idFROM`mfirst-360300.styssql.orders` as odLEFT JOIN`mfirst-360300.styssql.order_items` as oi  ON od.order_num = oi.order_numWHEREoi.prod_id = 'BR03' *//* Q1: who are the customer contacts from illinois, indiana, or michigan or work for fun4allinclude customer name, contact name, email, and state*//*SELECTcust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_stateFROM`mfirst-360300.styssql.customers` as custWHEREcust.cust_state IN ('IL','IN','MI')UNION DISTINCTSELECTcust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_stateFROM`mfirst-360300.styssql.customers` as custWHEREcust.cust_name = 'Fun4All'*//* Q1: who are the customer contacts from illinois, indiana, or michigan or work for fun4allinclude customer name, contact name, email, and stateinclude potential duplicates*/SELECTcust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_stateFROM`mfirst-360300.styssql.customers` as custWHEREcust.cust_state IN ('IL','IN','MI')UNION ALLSELECTcust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_stateFROM`mfirst-360300.styssql.customers` as custWHEREcust.cust_name = 'Fun4All'-----------------------------------------------------------------------------------------------------------CASE(), COALESCE(), CAST()-----------------------------------------------------------------------------------------------------------Using Case to perform feature engineering--Case allows us to change a value to another value based on one or more conditions--CASE works similarly to IF-ELIF-ELSE statements--the first condition is evaluated first, then the second an so on--the general syntax for CASE is shown below/*CASE  WHEN [condition] THEN [value]  WHEN [condition] THEN [value]  .  .  .  ELSE [default value]  END AS [alias for the feature/column]*/---------------------------------------------------------------------------------------------------------#Task: create a feature that will classify order quantities as follows:--Any quantity 100+ as "High"--Any quantity below 100 as "Low"---------------------------------------------------------------------------------------------------------/*SELECTorder_num,order_item,quantity,--Add the flag for high or low order quantityCASE  WHEN quantity >= 100 THEN 'High'  WHEN quantity <= 100 THEN 'Low'  END AS quantityflagFROM`mfirst-360300.styssql.order_items`*/---------------------------------------------------------------------------------------------------------#Using case statement to perform conditional calculations on our data#Q: How many order items are in the 'High' quantityflag, the 'Low' quantityflag?--Define 'High' and 'Low' based on the previous problem--some people call this the "zero trick" where our condition converts values to 1 if the condition is met and 0 otherwise---------------------------------------------------------------------------------------------------------/*SELECTSUM(CASE WHEN quantity >= 100 THEN 1 ELSE 0 END) as highCount,SUM(CASE WHEN quantity < 100 THEN 1 ELSE 0 END) as lowCountFROM`mfirst-360300.styssql.order_items`*/---------------------------------------------------------------------------------------------------------#prior question using a Count()--known as the 'NULL' case trick--condition specifies to count a value if met or ignore with NULL if not---------------------------------------------------------------------------------------------------------/*SELECTCOUNT(CASE WHEN quantity >= 100 THEN order_item ELSE NULL END) as highCount,COUNT(CASE WHEN quantity < 100 THEN order_item ELSE NULL END) as lowCountFROM`mfirst-360300.styssql.order_items`*/-----------------------------------------------------------------------------------------------------------Using Rollup() to show various aggregations in your result set--ROLLUP allows us to get subtotal rows (a.k.a. super-aggregate rows) and a grand total row--Roollup works by aggregating the grouping sets in a group by clause----- a grouping set is just the set of column you group by--Rollup will generate subtotals for all combinations of your grouping set------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#Q: what are the order quantity totals for company, order numbers, and order items--we could use subqueries to get all the different aggregations --OR... we could use ROLLUP()---------------------------------------------------------------------------------------------------------/*SELECTorder_num,order_item,sum(quantity) AS totQTYFROM`mfirst-360300.styssql.order_items`GROUP BYROLLUP (  order_num,  order_item)ORDER BYorder_num,order_item*/----------------------------------------------------------------#use a subquery to answer the previous problem/*SELECTordI.order_num,ordI.order_item,sum(quantity) as lineQTY,ordqty, #pulled from in line view-- write a subquery for the overall company values (SELECT SUM(quantity)FROM `mfirst-360300.styssql.order_items`) as compTotFROM`mfirst-360300.styssql.order_items` as ordI    -- write in line view to get order num subtotalsINNER JOIN(SELECT  order_num,  sum(quantity) as ordqty  FROM  `mfirst-360300.styssql.order_items`  GROUP BY  order_num) as ordTotON ordI.order_num = ordTot.order_numGROUP BYorder_num,order_item,ordqtyORDER BYordI.order_num*//*SELECT*,ROUND(quantity *item_price,2) as itemrev,ROUND(SUM(quantity * item_price) OVER(PARTITION BY prod_id),2) as prod_tot_rev,ROUND(SUM(quantity*item_price)OVER(),2) as total_revenueFROM`mfirst-360300.styssql.order_items`ORDER BYprod_id,order_item*//*ALTER TABLE`mydb.covid_county_population_usafacts`ADD COLUMNcounty_fips STRING*/ /*ALTER TABLE`mydb.covid_county_population_usafacts`DROP COLUMNcountyFIPS*//*SELECT*FROM`mydb.covid_county_population_usafacts`WHERECOUNTY_NAME = 'Autauga County'*//*UPDATE  mydb.covid_county_population_usafactsSET  -- Inserting proper county_fips codes and converting to string based on countyFIPS length  -- Note the second condition converts the Statewide Unallocated counties   county_fips =   CASE     WHEN LENGTH(CAST(countyFIPS AS STRING))=4 THEN CONCAT('0',CAST(countyFIPS AS STRING))    WHEN LENGTH(CAST(countyFIPS AS STRING))=1 THEN CONCAT('0000',CAST(countyFIPS AS STRING))    ELSE CAST(countyFIPS AS STRING) ENDWHERE county_fips IS NULL */ /*CREATE TABLE`mydb.covid_county_population_usafacts`ASSELECT * FROM `mydb.covid_copy`*//*SELECT*FROM`bigquery-public-data.covid19_usafacts.summary` as orgINNER JOIN`mydb.covid_county_population_usafacts` as db  ON org.county_fips_code = db.county_fips AND org.state = db.State WHEREdate < '2022-10-02'*//*SELECT*,ROUND(quantity *item_price,2) as itemrev,ROUND(SUM(quantity * item_price) OVER(PARTITION BY prod_id),2) as prod_tot_rev,ROUND(SUM(quantity*item_price)OVER(),2) as total_revenueFROM`mfirst-360300.styssql.order_items`ORDER BYprod_id,order_item*/CREATE OR REPLACE TABLE`mydb.dw_covid19`ASSELECTorg.*,sums.populationFROM`bigquery-public-data.covid19_usafacts.summary` as orgINNER JOIN`mfirst-360300.mydb.covid_county_population_usafacts` as sumsONorg.county_fips_code = sums.county_fipsANDorg.state = sums.StateWHEREorg.date <= '2022-10-01'/* Who are the customers that have purchased two specific products*//*Q1: show cust codes and names for anyone who has purchased product codes of 13-Q2/P2 and 23109-HB*//* done in two seperate querys*//*SELECT DISTINCTinv.CUS_CODEFROM`mfirst-360300.SaleCo.invoice` as invINNER JOIN`mfirst-360300.SaleCo.line` as lineONinv.INV_NUMBER = line.INV_NUMBERWHEREline.P_CODE = '13-Q2/P2' ;SELECT DISTINCTinv.CUS_CODEFROM`mfirst-360300.SaleCo.invoice` as invINNER JOIN`mfirst-360300.SaleCo.line` as lineONinv.INV_NUMBER = line.INV_NUMBERWHEREline.P_CODE = '23109-HB' *//* done using subquery in from*/SELECT DISTINCTcust.CUS_CODE, cust.CUS_FNAME, cust.CUS_LNAMEFROM`mfirst-360300.SaleCo.customer` as custINNER JOIN (SELECT DISTINCT  inv.CUS_CODEFROM  `mfirst-360300.SaleCo.invoice` as invINNER JOIN  `mfirst-360300.SaleCo.line` as lineON  inv.INV_NUMBER = line.INV_NUMBERWHERE  line.P_CODE = '13-Q2/P2') as firstprodONcust.CUS_CODE = firstprod.CUS_CODEINNER JOIN(SELECT DISTINCT  inv.CUS_CODEFROM  `mfirst-360300.SaleCo.invoice` as invINNER JOIN  `mfirst-360300.SaleCo.line` as lineON  inv.INV_NUMBER = line.INV_NUMBERWHERE  line.P_CODE = '23109-HB') as secondprodON firstprod.CUS_CODE = secondprod.CUS_CODE/*SELECT DISTINCTsum(confirmed_cases)FROM`mfirst-360300.mydb.dm_covid19`WHEREdate = '2022-10-1'*//*CREATE OR REPLACE TABLE`mfirst-360300.mydb.dm_covid19`ASSELECT*FROM`mfirst-360300.mydb.dw_covid19`WHEREstate = 'CO'*//*SELECT*FROM`mfirst-360300.mydb.dm_covid19`*//*SELECTIFNULL(county, 'stateTOTAL')*//*SELECTstate,ROUND(AVG(confirmed_cases)),FROM`mfirst-360300.mydb.dm_covid19`*//*WINDOWROLLUPCASEIFNULL replacement*/SELECT*, AVG(confirmed_cases) OVER( PARTITION BY county_name ORDER BY date DESCROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as avgsFROM`mfirst-360300.mydb.dm_covid19`WHEREdate = '2022-10-1'ANDcounty_name = 'Boulder County'/* Data Sets*//* `bigquery-public-data.bls.employment_hours_earnings`*//* `bigquery-public-data.noaa_icoads.icoads_core_2007` *//* `bigquery-public-data.cfpb_complaints.complaint_database` *//* `bigquery-public-data.census_bureau_usa.population_by_zip_2010` *//* `bigquery-public-data.noaa_significant_earthquakes.earthquakes` *//*SELECTrecalling_firm, COUNT (recall_number) as recallsFROM`bigquery-public-data.fda_drug.drug_enforcement`GROUP BYrecalling_firmORDER BYrecalls DESC*//*SELECT classification,EXTRACT (month FROM report_date) as Month, COUNT (recall_number) as recallsFROM`bigquery-public-data.fda_drug.drug_enforcement`GROUP BYMonth,classificationORDER BYclassification ASC,Month ASC*//*SELECTCOUNT(DISTINCT list.user_name) as users, COUNT (listened_at) as toListenFROM`listenbrainz.listenbrainz.listen` as listWHERElist.artist_name LIKE "Santana" *//*SELECTartist_name, COUNT (listened_at) as f,track_name, COUNT(DISTINCT user_name)FROM`listenbrainz.listenbrainz.listen`WHERE artist_name = "Santana"GROUP BYtrack_name, artist_nameORDER BYf DESC*//*SELECTROUND (AVG(sea_level_pressure),2),monthFROM `bigquery-public-data.noaa_icoads.icoads_core_2016`  Group BY  month HAVING  month=6*//*SELECT DISTINCTproduct, EXTRACT ( YEAR FROM date_received) as hello,COUNT (consumer_complaint_narrative) as fFROM`bigquery-public-data.cfpb_complaints.complaint_database`GROUP BY product, issue, date_receivedHAVING hello = 2020ORDER BYf ASC*//*SELECTmonth, ship_course, AVG (ship_speed)FROM `bigquery-public-data.noaa_icoads.icoads_core_2017` GROUP BY  month, ship_course HAVING (month = 1 OR month = 2) AND (ship_course = 1 OR ship_course = 2) *//* SELECTcountry as c,AVG (damage_millions_dollars) as d FROM `bigquery-public-data.noaa_significant_earthquakes.earthquakes` GROUP BY  c HAVING c = "MEXICO" *//*SELECTcountry as c,AVG (damage_millions_dollars) as d, eq_primary, year FROM `bigquery-public-data.noaa_significant_earthquakes.earthquakes` GROUP BY  c, eq_primary, year HAVING (year >= 2010 AND year <= 2015) AND eq_primary > 4 AND c = "ITALY" */ /* SELECTzipcode, gender, population, AVG (population) as avge FROM `bigquery-public-data.census_bureau_usa.population_by_zip_2000` GROUP BY gender, population, zipcode HAVING gender = "female" AND avge > 2000 AND population > 50000 *//* SELECTgender, zipcode, population as f FROM`bigquery-public-data.census_bureau_usa.population_by_zip_2000`GROUP BYgender, population,zipcodeHAVINGgender = "female" AND f > 50000 ORDER BYf DESC*/SELECT DISTINCTcountry as c,AVG (damage_millions_dollars) as d, eq_primary, year FROM `bigquery-public-data.noaa_significant_earthquakes.earthquakes` GROUP BY  c, eq_primary, year HAVING (year >= 2010 AND year <= 2015) AND eq_primary > 4 AND c = "ITALY"/*`noaa_icoads.icoads_core_2007`*//*`chicago_taxi_trips.taxi_trips`*//*`mfirst-360300.SaleCo.customers`*//*`mfirst-360300.ConstructCo.assignment`*/    /*SELECT    od.cust_id    FROM    `mfirst-360300.styssql.orders` as od    WHERE    od.order_num IN     (SELECT    oi.order_num    FROM    `mfirst-360300.styssql.order_items` as oi    WHERE    oi.prod_id = "RGAN01") */    /*    SELECT    cust.cust_id,    cust.cust_name as name    FROM    `mfirst-360300.styssql.customers` as cust    WHERE    cust.cust_id IN         (SELECT        od.cust_id        FROM        `mfirst-360300.styssql.orders` as od        WHERE        od.order_num IN                (                  SELECT                  oi.order_num                              FROM                  `mfirst-360300.styssql.order_items` as oi                  WHERE                  oi.prod_id = "RGAN01"                )         )    *//* JOINS *//*SELECTcust.cust_id, cust.cust_name,cust.cust_address,cust.cust_city,ord.order_num,ord.order_dateFROM`mfirst-360300.styssql.customers` as custINNER JOIN`mfirst-360300.styssql.orders` as ordONcust.cust_id = ord.cust_idWHEREcust_name = "Village Toys"*//*`mfirst-360300.styssql.order_items`*//*`mfirst-360300.SaleCo.customers`*//*`mfirst-360300.ConstructCo.assignment`*//*SELECTcust.cust_id, cust.cust_name,cust.cust_address,cust.cust_city,ord.order_num,ord.order_dateFROM`mfirst-360300.styssql.customers` as custINNER JOIN`mfirst-360300.styssql.orders` as ordONcust.cust_id = ord.cust_idWHEREcust_name = "Village Toys"*//*SELECT   vend.vend_id,  vend.vend_name,  prod.prod_id,  prod.prod_name  FROM  `styssql.vendors` as vend  INNER JOIN  `styssql.products` as prod  ON vend.vend_id = prod.vend_id  LEFT JOIN  `styssql.order_items` as OrdI  ON prod.prod_id = ordI.prod_idWHERE  OrdI.order_num IS NULLGROUP BY vend.vend_id,  vend.vend_name,  prod.prod_id,  prod.prod_nameORDER BY  vend_name,  prod_name*/# this is a comment/* this is a comment too*//*SELECT  m.prod_name,prod_id,prod_price,vend_idFROM  `mfirst-360300.styssql.products` as mWHERE  m.vend_id = 'DLL01' AND m.prod_price <= 4*//*SELECT  m.prod_name,prod_id,vend_idFROM  `mfirst-360300.styssql.products` as mWHERE  m.vend_id = 'DLL01' OR m.vend_id = 'BRS01'*//*These two do the same thing^vSELECT  m.prod_name,prod_id,vend_idFROM  `mfirst-360300.styssql.products` as mWHERE  m.vend_id IN ('DLL01', 'BRS01')*//*SELECT  m.prod_name,prod_id,prod_price,vend_idFROM  `mfirst-360300.styssql.products` as mWHERE  (m.vend_id = 'DLL01' OR  m.vend_id = 'BRS01') AND m.prod_price > 10*//*SELECT  m.prod_name,prod_id,prod_price,vend_idFROM  `mfirst-360300.styssql.products` as m  WHERE  m.prod_name LIKE 'Fish%'*//*SELECT  m.prod_name,prod_id,prod_price,vend_idFROM  `mfirst-360300.styssql.products` as m  WHERE  m.prod_name LIKE '%Bean Bag%'*//*  SELECT  m.prod_name,prod_id,prod_price,vend_idFROM  `mfirst-360300.styssql.products` as m  WHERE  m.prod_name LIKE '_ inch%' OR  m.prod_name LIKE '__inch'*/SELECTprod.browserFROM`bigquery-public-data.google_analytics_sample` as prodCREATE VIEW`mfirst-360300.styssql.prodCustJoin`ASSELECTcust.cust_name,cust.cust_contact,ordI.prod_idFROM`mfirst-360300.styssql.customers` AS custINNER JOIN`mfirst-360300.styssql.orders` AS ordONcust.cust_id = ord.cust_idINNER JOIN`mfirst-360300.styssql.order_items` as ordION ord.order_num = ordI.order_num
+My SQL Work is all stored in Google Big Query √ê This is a text file holding some examples of SQL I have done and does not represent my entire catalog of experience.
+
+---------------------------------------------------------------------------------------------------------
+# Using COALESCE to substitute in values for NULL VALUES
+-- Notice when we use ROLLUP() the null values that occured for various subtotals and grand total
+--We can use COALESCE to insert values for those NULL values to improve the output
+-- We also need to use the CAST function to convert order_num and order_item to strings
+------CAST converts columns into a specified data type
+------ we need to convert order_num and order_item to strings because COALESCE only works on string values
+---------------------------------------------------------------------------------------------------------
+
+/*
+SELECT
+COALESCE(CAST(order_num AS STRING),'ovTotal') AS ordernum,
+COALESCE(CAST(order_item AS STRING),'ordTot') AS orderitem,
+sum(quantity) as totQTY
+FROM
+`mfirst-360300.styssql.order_items`
+GROUP BY
+  ROLLUP (
+  order_num,
+  order_item)
+ORDER BY
+order_num,
+order_item
+
+*/
+
+SELECT
+COALESCE(category,'HELLO') AS cat,
+SUM(purchases)
+FROM
+`mfirst-360300.mydb.Produce`
+GROUP BY
+category
+;
+------------------------------------------------------------------------------- COALESCE to get rid of nulls^^
+SELECT
+sum(confirmed_cases) 
+OVER (
+  PARTITION BY county_name
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+) as case_by_county,
+sum(deaths) 
+OVER (
+  PARTITION BY county_name
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+) as death_by_county,
+county_name
+
+FROM
+`mfirst-360300.mydb.dm_covid19`
+
+WHERE date = '2022-10-01'
+ORDER BY
+case_by_county DESC
+-------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+  #create customer tables for SimpleCo dataset
+  ----------------------------------------------------------------------------------------------------
+/*
+CREATE OR REPLACE TABLE
+  `mfirst-360300.SimpleCo.CUSTOMER`
+(CUST_NUM INT64,
+CUST_LNAME STRING,
+CUST_FNAME STRING,
+CUST_BALANCE FLOAT64)
+*/
+  ----------------------------------------------------------------------------------------------------
+  #create invoice tables for SimpleCo dataset
+  ----------------------------------------------------------------------------------------------------
+/*
+CREATE OR REPLACE TABLE
+  `mfirst-360300.SimpleCo.INVOICE`
+(INV_NUM INT64,
+CUST_NUM INT64,
+INV_DATE DATE,
+INV_AMOUNT FLOAT64)
+*/
+  ----------------------------------------------------------------------------------------------------
+  #using, CREATE TABLE, make some tables in the 'mydb' dataset
+  #using, ALTER TABLE, make changes to an existing table
+  #using, DROP TABLE, delete tables
+  ----------------------------------------------------------------------------------------------------
+  #first lets create a customer table for mydb
+  /*
+CREATE TABLE
+  `mfirst-360300.mydb.customer`
+(
+custID INT64 NOT NULL,
+custFname STRING NOT NULL,
+custLname STRING NOT NULL,
+custEmail STRING,
+custBalance INT64
+)
+;
+*/
+  ----------------------------------------------------------------------------------------------------
+  #now lets create an invoice table for mydb
+  /*
+CREATE TABLE
+  `mfirst-360300.mydb.invoice`
+(
+invNumber INT64 NOT NULL,
+custID INT64 NOT NULL,
+invDate DATE NOT NULL,
+)
+
+*/
+  -----------------------------------------------------------------------------------------------------------
+  #Now, lets use, ALTER TABLE, to add a custPhone to the customers table
+  --note: most dbms dont allow to delete columns once created
+  /*
+ALTER TABLE
+`mfirst-360300.mydb.custCopy`
+ADD COLUMN
+cust_phone STRING
+*/
+  #BigQuery lets us add a description to the table as well
+  --Note: we can also do this through the BigQuery GUI
+  /*
+ALTER TABLE
+`mfirst-360300.mydb.custCopy`
+SET OPTIONS
+(description = 'This is the tutorial table for DDL statements in BigQuery')
+*/
+  # DROP COLUMN
+  --Note: most dbms dont allow to delete columns once created
+  --Note: most table changes can't be undone so make sure you're certain
+  /*
+ALTER TABLE
+`mfirst-360300.mydb.custCopy`
+DROP COLUMN
+cust_phone
+*/
+  -----------------------------------------------------------------------------------------------------------
+  # Creating table from another table with a query
+  --Note: You can do this with BigQuery public data as well
+  -----------------------------------------------------------------------------------------------------------
+  /*
+CREATE TABLE
+`mfirst-360300.mydb.custCopy2`
+AS
+SELECT
+*
+FROM
+`mfirst-360300.styssql.customers`
+*/
+  -----------------------------------------------------------------------------------------------------------
+  # DROP TABLE: Now lets delete a tables(s)
+  --Note: always use caution while doing this
+  --the following will start us from. scratch in the mydb dataset
+  -----------------------------------------------------------------------------------------------------------
+  /*
+DROP TABLE
+`mfirst-360300.mydb.custCopy2`
+*/
+  -----------------------------------------------------------------------------------------------------------
+  # modify the VENDORS table in your mydb dataset to include a new column, vend_web, that will store the vendors website as a STRING
+  -----------------------------------------------------------------------------------------------------------
+  /*
+ALTER TABLE
+mydb.VENDORS
+ADD COLUMN
+vend_web STRING
+*/
+/* Q1: what are the total product sales and employee contribution to product sales? */
+
+WITH prodSummary
+
+AS
+#CTE
+(SELECT
+line.P_CODE,
+SUM(line.LINE_UNITS*line.LINE_PRICE) as pSales,
+  (SELECT COUNT (EMP_NUM) FROM `mfirst-360300.SaleCo.employee`) AS eCount
+FROM
+`mfirst-360300.SaleCo.line` as line
+GROUP BY
+P_CODE
+)
+
+SELECT 
+prodSummary.P_CODE,
+prodSummary.pSales,
+prodSummary.eCount,
+
+-- total product sales (can't do with in line view)
+
+ROUND((SELECT SUM(prodSummary.pSales) FROM prodSummary),2) as total_sales,
+ROUND((prodSummary.pSales / prodSummary.eCount),2) AS eContrib
+
+FROM
+prodSummary
+ORDER BY
+pSales DESC
+
+/*
+--#1
+ALTER TABLE
+`mfirst-360300.mydb.dw_covid19`
+ADD COLUMN
+timeZone STRING
+;
+*/
+
+/*
+--#2
+UPDATE
+mydb.dw_covid19
+SET
+timeZone =
+CASE
+WHEN
+ state IN ('CO','MT','NM','UT','WY','AZ') 
+THEN
+ 'Mountain'
+WHEN
+  state in ('CA','NV','OR','WA') THEN 'Pacific'
+ELSE 'Other'
+END
+WHERE 
+  timeZone IS NULL
+*/
+
+
+/*
+--#3
+SELECT
+SUM(confirmed_cases) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases,
+SUM(deaths) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths,
+ROUND((SUM(confirmed_cases) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM (population)OVER())*100000,2) as cases_per_100k,
+ROUND((SUM(deaths) OVER(PARTITION BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM(population)OVER())*100000,2) as death_per_100k,
+SUM(population) OVER() as tot_pop
+FROM
+`mfirst-360300.mydb.dw_covid19`
+WHERE
+date = '2020-11-20'
+*/
+
+/*
+SELECT
+date,
+population,
+confirmed_cases
+FROM
+`mfirst-360300.mydb.dw_covid19`
+ORDER BY
+date ASC
+*/
+
+
+
+--#5
+/*
+SELECT DISTINCT
+SUM(confirmed_cases) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases,
+SUM(deaths) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths,
+ROUND((SUM(confirmed_cases) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM (population)OVER(partition by timeZone))*100000,2) as cases_per_100k,
+ROUND((SUM(deaths) OVER(PARTITION BY timeZone ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)/SUM(population)OVER(partition by timeZone))*100000,2) as death_per_100k,
+SUM(population) OVER(partition by timeZone) as tot_pop,
+timeZone
+FROM
+`mfirst-360300.mydb.dw_covid19`
+WHERE date = '2022-2-1'
+ORDER BY
+cases_per_100k DESC
+*/
+
+/*SELECT
+
+SUM(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases_by_state,
+SUM(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths_by_state,
+ROUND(AVG(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),2) as avg_cases_by_state,
+ROUND(AVG(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),2) as avg_deaths_by_state,
+SUM(population) OVER(partition by state) as tot_pop,
+timeZone
+FROM
+`mfirst-360300.mydb.dw_covid19`
+WHERE date = '2022-4-1'
+AND
+state IN ('CO','CA')
+
+;
+
+SELECT
+SUM(confirmed_cases) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_cases_by_state,
+SUM(deaths) OVER(PARTITION BY state ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as tot_deaths_by_state
+FROM
+`mfirst-360300.mydb.dm_covid19`
+WHERE date = '2022-4-1'
+ORDER BY
+tot_cases_by_state DESC
+#CREATE VIEWS
+
+----------------------------------------------------------------------------------------------------------------
+#using, CREATE VIEW, make some views in our styssql dataset
+----------------------------------------------------------------------------------------------------------------
+#first write a query that will filter out certain products
+#QUESTION: who are all the customers that ordered a certain product?
+-- for this example, who ordered product of id 'RG'
+
+/*
+SELECT
+cust.cust_name,
+cust.cust_contact
+
+FROM
+`mfirst-360300.styssql.customers` AS cust
+INNER JOIN
+`mfirst-360300.styssql.orders` AS ord
+ON
+cust.cust_id = ord.cust_id
+INNER JOIN
+`mfirst-360300.styssql.order_items` as ordI
+ON 
+ord.order_num = ordI.order_num
+WHERE
+ordI.prod_id = 'RGAN01'
+*/
+
+----------------------------------------------------------------------------------------------------------------
+#Now let's create a view that will allow us to simplify the process of filtering products
+-- filtering out specific products will likely be a common request
+-- we can create a view based on the "guts" of the previous query and then make updates to the WHERE statement
+
+----------------------------------------------------------------------------------------------------------------
+#creating a view to join products to orders to order items
+--Note: BigQuery requires us to use the project id to define our tables when creating a view
+----------------------------------------------------------------------------------------------------------------
+/*
+CREATE VIEW
+`mfirst-360300.styssql.prodCustJoin`
+AS
+SELECT
+cust.cust_name,
+cust.cust_contact,
+ordI.prod_id
+FROM
+`mfirst-360300.styssql.customers` AS cust
+INNER JOIN
+`mfirst-360300.styssql.orders` AS ord
+ON
+cust.cust_id = ord.cust_id
+INNER JOIN
+`mfirst-360300.styssql.order_items` as ordI
+ON 
+ord.order_num = ordI.order_num
+*/
+
+----------------------------------------------------------------------------------------------------------------
+#Now let's look at why creating a view can be beneficial
+--QUESTION: Who are all the customers that ordered product 'RGAN01'?
+--Using a view we reduce the query down to a few lines
+----------------------------------------------------------------------------------------------------------------
+/*
+SELECT
+*
+FROM
+`mfirst-360300.styssql.prodCustJoin` as prodview
+WHERE
+prodview.prod_id = 'RGAN01'
+*/
+
+----------------------------------------------------------------------------------------------------------------
+#another use case for view, reformatting data
+-- adding a new field that combines vendor name and country
+--instead of always using a concat() statement we can create a view
+----------------------------------------------------------------------------------------------------------------
+/*
+CREATE VIEW
+`mfirst-360300.styssql.vendLocations`
+AS
+SELECT
+*,
+concat(trim(vend_name),' (',trim(vend_country), ')') as vendLoc
+
+FROM
+`mfirst-360300.styssql.vendors` as vend
+;
+*/
+
+/*see what happened*/
+/*
+SELECT
+*
+FROM
+`mfirst-360300.styssql.vendLocations`
+
+*/
+
+----------------------------------------------------------------------------------------------------------------
+#Views can also be helpful to filter out unwanted data
+--instead of always having to type the same WHERE statements, we can create a view
+#TASK: create a view to filter out null email values
+--null emails are obviously not desired for a distribution list
+----------------------------------------------------------------------------------------------------------------
+/*
+CREATE VIEW
+`mfirst-360300.styssql.custemaillist`
+AS
+SELECT
+*
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE 
+cust.cust_email IS NOT NULL
+*/
+
+/*
+SELECT *
+FROM `mfirst-360300.styssql.custemaillist`
+*/
+
+----------------------------------------------------------------------------------------------------------------
+#another use for views: calculated fields
+--instead of always having to type the same fields, make a view
+#TASK: create a view to calculate the total cost per item
+----------------------------------------------------------------------------------------------------------------
+/*
+CREATE VIEW
+`mfirst-360300.styssql.totCost`
+AS
+SELECT
+*,
+round((ordI.quantity * ordI.item_price),2) as totCost
+FROM
+`mfirst-360300.styssql.order_items` as ordI
+*/
+
+/*
+
+SELECT
+*
+FROM
+`mfirst-360300.styssql.totCost`
+
+*/
+
+/* Midterm Notes*/
+/*`bigquery-public-data.ncaa_basketball.mbb_teams`*/              /* MBB Teams */
+/*`bigquery-public-data.ncaa_basketball.mascots`*/               /*  Basketball Mascots  */
+/*`bigquery-public-data.usa_names.usa_1910_2013`*/              /*   USA NAMES        */
+/*`bigquery-public-data.noaa_icoads.icoads_core_2017`*/         /*   NOAA ICOADS    */
+/*`mfirst-360300.styssql.customers`*/       /*   STYS CUST     */
+/*`mfirst-360300.SaleCo.customer`*/         /*   SALECO        */  
+/*`mfirst-360300.ConstructCo.assignment`*/  /*   CONSTRUCTCO   */
+
+#Q1
+/*
+SELECT
+COUNT(mascot) as tot,
+mascot_common_name
+FROM
+`bigquery-public-data.ncaa_basketball.mascots`
+GROUP BY
+mascot, mascot_common_name
+ORDER BY
+tot DESC
+*/
+
+#Question 2
+
+/*
+SELECT DISTINCT
+venue_address,
+venue_capacity
+FROM
+`bigquery-public-data.ncaa_basketball.mbb_teams`
+GROUP BY
+venue_address, venue_capacity
+HAVING
+venue_capacity > 20000
+ORDER BY
+venue_capacity DESC
+*/
+
+#question 3
+/*
+SELECT
+state,
+sum(number) as sums,
+name,
+gender
+
+FROM
+`bigquery-public-data.usa_names.usa_1910_2013`
+GROUP BY
+name,state,year,gender
+
+HAVING
+year IN (1910,1911,1912,1913)
+AND
+state = 'CO'
+AND
+gender = 'M'
+AND
+name = 'John'
+ORDER BY
+sums DESC
+
+*/
+
+#Question 4
+/*
+SELECT
+SUM(EMP_YEARS) as totYears,
+COUNT(EMP_LNAME) as totEMP,
+ROUND((SUM(EMP_YEARS)/3),2) as avgYears,
+EMP_LNAME
+FROM
+`mfirst-360300.ConstructCo.employee`
+GROUP BY
+EMP_LNAME,EMP_YEARS
+HAVING
+EMP_LNAME LIKE "Jo%"
+;
+
+SELECT
+EMP_YEARS,
+EMP_LNAME
+FROM
+`mfirst-360300.ConstructCo.employee`
+WHERE
+EMP_LNAME = 'Joenbrood'
+OR
+EMP_LNAME = 'Jones'
+OR
+EMP_LNAME = 'Johnson'
+*/
+
+#Question 5
+/*
+SELECT
+  ROUND(AVG(air_temperature),2) moAvgTemp,
+  month,
+(
+SELECT
+ROUND(AVG(air_temperature),2)
+FROM
+`bigquery-public-data.noaa_icoads.icoads_core_2010`
+) as ovAvgTemp
+FROM
+  `bigquery-public-data.noaa_icoads.icoads_core_2010`
+  GROUP BY
+month
+HAVING
+moAvgTemp > ovAvgTemp
+ORDER BY
+moAvgTemp DESC
+*/
+
+
+#Question 6
+/*
+SELECT DISTINCT
+vend.V_CODE,
+vend.V_NAME,
+vend.V_CONTACT,
+prod.P_QOH,
+prod.P_CODE,
+prod.P_DESCRIPT,
+vend.V_ORDER
+FROM
+`mfirst-360300.SaleCo.product` as prod
+INNER JOIN
+`mfirst-360300.SaleCo.vendor` as vend
+ON
+prod.V_CODE = vend.V_CODE
+INNER JOIN
+`mfirst-360300.SaleCo.line` as line
+ON
+line.P_CODE = prod.P_CODE
+WHERE
+prod.P_QOH > 0
+AND
+vend.V_ORDER = FALSE
+
+ORDER BY
+prod.P_QOH DESC
+*/
+
+#question 7
+/*CREATE VIEW
+`mfirst-360300.ConstructCo.zaidsview`
+AS
+SELECT
+SUM(ASSIGN_CHARGE) as chrgbyProjectandEmp,
+proj.PROJ_NUM,
+emp.EMP_NUM,
+emp.EMP_LNAME
+FROM
+`mfirst-360300.ConstructCo.assignment` as ass
+INNER JOIN
+`mfirst-360300.ConstructCo.employee` as emp
+ON
+ass.EMP_NUM = emp.EMP_NUM
+INNER JOIN
+`mfirst-360300.ConstructCo.project` as proj
+ON 
+ass.PROJ_NUM = proj.PROJ_NUM
+GROUP BY
+proj.PROJ_NUM,
+emp.EMP_NUM,
+emp.EMP_LNAME
+HAVING
+proj.PROJ_NUM IN (22,25)
+ORDER BY
+emp.EMP_NUM ASC
+;
+
+SELECT
+SUM(chrgbyProjectandEmp)
+FROM
+`mfirst-360300.ConstructCo.zaidsview`
+WHERE
+PROJ_NUM = 25
+
+*/
+
+
+/*`mfirst-360300.styssql.order_items`*/
+/*`mfirst-360300.SaleCo.customer`*/
+/*`mfirst-360300.ConstructCo.assignment`*/
+/*`mfirst-360300.mydb.dm_covid19`*/
+/*`mfirst-360300.mydb.dw_covid19`*/
+
+--three main bi reporting styles
+--Advanced reporting, Monitoring and alerting, Advanced data analytics 
+
+--What does the acronym MDM represent?  
+-- MASTER DATA MANAGEMENT
+
+--What are the three major ways operational data differs from decision support data from a data analyst's perspective?
+--Time span, Granularity, Dimensionality
+
+--What does the acronym ETL represent?
+--Extraction , Transformation , Loading
+
+--What are the four main characteristics of a data warehouse?
+--Integrated, Subject-oriented , Time-variant , Nonvolatile
+
+
+
+/*
+SELECT
+oi.order_num,
+sum(oi.quantity) OVER() as comp_total_quantity,
+sum(oi.quantity) OVER(PARTITION BY oi.order_num) as ord_tot,
+avg(oi.quantity) OVER() as cAVG_quantity
+FROM
+`mfirst-360300.styssql.order_items` as oi
+INNER JOIN
+`mfirst-360300.styssql.products` as prod
+ON
+prod.prod_id = oi.prod_id
+*/
+
+/*
+SELECT
+prod.P_CODE,
+prod.P_DESCRIPT,
+prod.P_QOH,
+vend.V_CODE,
+vend.V_NAME,
+vend.V_CONTACT,
+AVG(prod.P_QOH) OVER() as avgProdInventory,
+AVG(prod.P_QOH) OVER()-prod.P_QOH as invAvgDiff,
+
+FROM
+`mfirst-360300.SaleCo.product` as prod
+INNER JOIN
+`mfirst-360300.SaleCo.vendor` as vend
+ON
+vend.V_CODE = prod.V_CODE
+ORDER BY
+invAvgDiff DESC
+*/
+
+/*
+CREATE OR REPLACE TABLE 
+  `mydb.nyc_citibike_trips`
+  AS
+SELECT 
+  start_station_name,
+  end_station_name,
+  gender,
+  birth_year,
+  tripduration
+FROM 
+  `bigquery-public-data.new_york.citibike_trips`
+  */
+/*
+  SELECT
+  *
+  FROM
+  `mydb.nyc_citibike_trips`
+
+*/
+
+/*
+SELECT
+boroname,
+COUNT(tree_id) OVER(PARTITION BY borocode) as boro_tot,
+COUNT(tree_id) OVER() as GRAND_TOTAL,
+ROUND((SELECT COUNT(status)OVER() FROM `bigquery-public-data.new_york_trees.tree_census_2015` WHERE status = 'Dead')/COUNT(tree_id) OVER())*100,2 as percent_dead,
+AVG(stump_diam) OVER (PARTITION BY borocode) as average_diam
+
+FROM
+`bigquery-public-data.new_york_trees.tree_census_2015`
+*/
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+--FINAL EXAM PART 2 (Class Databases)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--QUESTION 1
+
+SELECT
+inv.CUS_CODE as customer, 
+cust.CUS_LNAME,
+SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER() as overall_revenue,
+SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER(PARTITION BY inv.CUS_CODE) as cust_rev,
+SUM(lin.LINE_UNITS*lin.LINE_PRICE) OVER(PARTITION BY inv.INV_NUMBER) as invoice_rev
+
+FROM
+`mfirst-360300.SaleCo.line` as lin
+INNER JOIN
+`mfirst-360300.SaleCo.invoice` as inv
+ON
+lin.INV_NUMBER = inv.INV_NUMBER
+INNER JOIN
+`mfirst-360300.SaleCo.customer` as cust
+ON
+cust.CUS_CODE = inv.CUS_CODE
+ORDER BY
+invoice_rev DESC, 
+cust.CUS_LNAME ASC
+;
+
+--QUESTION 2
+/*
+SELECT DISTINCT
+cust.CUS_CODE,
+cust.CUS_LNAME,
+COUNT(inv.INV_NUMBER) OVER(PARTITION BY inv.CUS_CODE) as invoices,
+(SELECT CUS_LNAME FROM `mfirst-360300.SaleCo.customer` as cust INNER JOIN `mfirst-360300.SaleCo.invoice` as inv ON inv.CUS_CODE = cust.CUS_CODE WHERE inv.INV_NUMBER IS NULL)
+FROM
+`mfirst-360300.SaleCo.invoice` as inv,
+INNER JOIN
+`mfirst-360300.SaleCo.customer` as cust
+ON
+cust.CUS_CODE = inv.CUS_CODE
+ORDER BY
+cust.CUS_LNAME ASC
+;
+*/
+
+SELECT
+CUS_LNAME, CUS_CODE
+FROM
+`mfirst-360300.SaleCo.customer`
+ORDER BY
+CUS_LNAME ASC
+;
+
+SELECT
+COUNT(inv.INV_NUMBER) OVER() as invoices
+FROM
+`mfirst-360300.SaleCo.invoice` as inv
+INNER JOIN
+`mfirst-360300.SaleCo.customer` as cust
+ON
+cust.CUS_CODE = inv.CUS_CODE
+WHERE CUS_LNAME = 'Ramas'
+;
+
+--QUESTION 3
+
+SELECT
+proj.PROJ_NUM,
+proj.PROJ_NAME,
+ass.ASSIGN_NUM,
+ass.EMP_NUM,
+ass.ASSIGN_CHARGE,
+--SUM(ass.ASSIGN_CHARGE) OVER () as indv_assign_chrg,
+SUM(ass.ASSIGN_CHARGE) OVER (PARTITION BY proj.PROJ_NUM) as proj_assign_chrg,
+SUM(ass.ASSIGN_CHARGE) OVER (ORDER BY proj.PROJ_NUM ASC, ASSIGN_NUM ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as proj_running_chrg,
+FROM
+`mfirst-360300.ConstructCo.assignment` as ass
+INNER JOIN
+`mfirst-360300.ConstructCo.project` as proj
+ON proj.PROJ_NUM = ass.PROJ_NUM
+ORDER BY
+proj.PROJ_NUM ASC,
+ASSIGN_NUM ASC
+;
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+--FINAL EXAM PART 3 (BIGQUERY PUBLIC DATA)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--QUESTION 1
+
+SELECT DISTINCT
+country,
+COUNT(object_id) OVER(PARTITION BY country) as airports_w_1
+
+FROM
+`bigquery-public-data.faa.us_airports`
+
+ORDER BY
+airports_w_1 ASC
+;
+
+--QUESTION 2
+
+SELECT DISTINCT
+ROUND(AVG(value) OVER(PARTITION BY period),2),
+period,
+year
+FROM
+`bigquery-public-data.bls.employment_hours_earnings`
+WHERE
+year = 2018
+AND
+period = 'M04'
+
+;
+
+--QUESTION 3
+SELECT
+  ROUND(AVG(air_temperature),2) moAvgTemp,
+  month,
+(
+SELECT
+ROUND(AVG(air_temperature),2)
+FROM
+`bigquery-public-data.noaa_icoads.icoads_core_2015`
+) as ovAvgTemp
+FROM
+  `bigquery-public-data.noaa_icoads.icoads_core_2015`
+  GROUP BY
+month
+HAVING
+moAvgTemp > ovAvgTemp
+ORDER BY
+moAvgTemp DESC
+;
+
+--QUESTION 4 and 5
+
+SELECT DISTINCT
+SUM(awayFinalRuns + homeFinalRuns) OVER (PARTITION BY venueName) as tot_runs,
+SUM(awayFinalHits + homeFinalHits) OVER (PARTITION BY venueName) as tot_hits,
+SUM(awayFinalHits + homeFinalHits) OVER () as grand_tot_hits,
+SUM(awayFinalRuns + homeFinalRuns) OVER ()/ SUM(awayFinalHits + homeFinalHits) OVER () as run_to_hit_GT, 
+venueName,
+
+FROM
+`bigquery-public-data.baseball.games_wide`
+WHERE 
+--venueName NOT IN ('Rogers Centre','Coors Field','Fenway Park','Great American Ball Park','Angel Stadium')
+venueName IN ('Target Field')
+ORDER BY
+tot_hits DESC
+
+/*
+SELECT DISTINCT
+p.name, LENGTH (p.name) as f
+FROM 
+`bigquery-public-data.usa_names.usa_1910_current` as p
+WHERE
+p.name LIKE "%en" 
+
+ORDER BY f DESC, p.name ASC 
+*/
+
+/*
+SELECT CONCAT(p.name,'-',p.state, '-',p.year,'-',p.number) as f
+FROM 
+`bigquery-public-data.usa_names.usa_1910_current` as p
+WHERE p.state LIKE "CO"
+ORDER BY f ASC
+*/
+
+/*
+SELECT * FROM `movies` GROUP BY `category_id`,`year_released` HAVING `category_id` = 8; */
+
+/*
+SELECT 
+prod.vend_id, AVG( prod.prod_price) as avgOver4
+FROM
+`styssql.products` as prod
+
+WHERE prod.prod_price > 4
+
+GROUP BY 
+prod.vend_id
+HAVING avgOver4 > 9
+*/
+
+/*
+SELECT
+recalling_firm, COUNT (recall_number) as recalls
+FROM
+`bigquery-public-data.fda_drug.drug_enforcement`
+GROUP BY
+recalling_firm
+ORDER BY
+recalls DESC
+*/
+
+/*
+SELECT classification,
+EXTRACT (month FROM report_date) as Month, COUNT (recall_number) as recalls
+FROM
+`bigquery-public-data.fda_drug.drug_enforcement`
+GROUP BY
+Month,
+classification
+ORDER BY
+classification ASC,
+Month ASC
+*/
+/*
+SELECT 
+*
+FROM
+`bigquery-public-data.noaa_icoads.`
+*/
+
+/*
+INSERT INTO
+ `mfirst-360300.styssql.custNew`
+ (
+ cust_id,
+ cust_name,
+ cust_address,
+ cust_city,
+ cust_state,
+ cust_zip,
+ cust_country,
+ cust_contact,
+ cust_email
+ )
+
+ VALUES 
+ (
+   1234,
+   'Toy Land',
+   '123 anywhere ln',
+   'New York',
+   'NY',
+   22222,
+   'USA',
+   NULL,
+   NULL
+ )
+ ;
+
+ */
+
+ #insert multiple records
+
+/*
+ INSERT INTO
+ `mfirst-360300.styssql.custNew`
+
+ (cust_id,cust_name)
+
+ VALUES
+ (1,'Toy1'),
+ (2,'Toy2'),
+ (3,'Toy3')
+ ;
+
+ */
+
+---------------------------------------------------------------------------------------------------------------------------------
+ #inserting data with a query
+---------------------------------------------------------------------------------------------------------------------------------
+#task: insert the new customers from custNew into the customers styssl customers table
+/*
+INSERT INTO 
+`mfirst-360300.styssql.customers`
+ (
+ cust_id,
+ cust_name,
+ cust_address,
+ cust_city,
+ cust_state,
+ cust_zip,
+ cust_country,
+ cust_contact,
+ cust_email
+ )
+
+ SELECT
+ cust_id,
+ cust_name,
+ cust_address,
+ cust_city,
+ cust_state,
+ cust_zip,
+ cust_country,
+ cust_contact,
+ cust_email
+ FROM
+ `mfirst-360300.styssql.custNew`
+
+ */
+---------------------------------------------------------------------------------------------------------------------------------
+#updating data with UPDATE SET WHERE
+---------------------------------------------------------------------------------------------------------------------------------
+#first, update the city for cust_id 1 and cust_id 2 to have a city of Denver and state of CO
+
+/*
+UPDATE 
+`mfirst-360300.styssql.customers` as cust
+SET
+cust.cust_city = 'Denver',
+cust.cust_state = 'CO'
+
+WHERE
+cust_id IN (1,2)
+*/
+
+#now update the city for cust_id 3 to have a city of Amarillo and state of TX
+
+/*
+UPDATE
+`mfirst-360300.styssql.customers`
+SET
+cust_city = 'Amarillo',
+cust_state = 'TX'
+WHERE
+cust_id IN (3)
+*/
+---------------------------------------------------------------------------------------------------------------------------------
+#copying from one table to another
+#Insert Into appends data to an existing table
+#But if we want to make a table from an existing table we use, CREATE TABLE
+---------------------------------------------------------------------------------------------------------------------------------
+/*
+CREATE TABLE
+  `mfirst-360300.styssql.custCopy` /*create name of new table*/
+/*AS 
+
+SELECT
+*
+FROM
+`mfirst-360300.styssql.customers`
+;
+*/
+---------------------------------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------------------------------
+#Deleting data from tables
+#Task: delete the new customers we added to customers earlier
+
+/*
+DELETE
+FROM
+`mfirst-360300.styssql.custCopy`
+WHERE
+cust_id IN (1,2,3,1234)
+;
+*/
+
+/*
+CREATE TABLE
+mydb.VENDORS
+(
+vend_id STRING,
+vend_name STRING,
+vend_address STRING,
+vend_city STRING,
+vend_state STRING,
+vend_country STRING
+)
+
+;
+*/
+
+
+
+--------------------------------------------------------------------------------------------------------------------
+#make VENDORS table from vendors styssql
+--------------------------------------------------------------------------------------------------------------------
+/*
+INSERT INTO 
+`mfirst-360300.mydb.VENDORS`
+
+(
+vend_id,
+vend_name,
+vend_address,
+vend_city,
+vend_state,
+vend_country
+)
+
+SELECT
+vend_id,
+vend_name,
+vend_address,
+vend_city,
+vend_state,
+vend_country
+FROM
+`mfirst-360300.styssql.vendors`
+*/
+
+--------------------------------------------------------------------------------------------------------------------
+# Insert a website for the vendor with id of 'BRS01'. 
+--The websites for each vendor should be the vendors name plus '@bigquery.com'
+----Remove spaces in the vendor name when you concatenate the strings
+--------------------------------------------------------------------------------------------------------------------
+
+UPDATE 
+  `mfirst-360300.mydb.VENDORS`
+SET
+  vend_web = CONCAT(REPLACE(vend_name, ' ',''),'@bigquery.com')
+WHERE
+  vend_id = 'BRS01'
+  /*SELECT
+list.artist_name, count(listened_at) as listens
+FROM
+`listenbrainz.listenbrainz.listen` as list
+GROUP BY
+list.artist_name,list.track_name,
+HAVING
+list.artist_name = 'Mariah Carey'*/ /*
+SELECT
+count(hi.listened_at) AS INT,hi.user_name,hi.artist_name,
+FROM
+`listenbrainz.listenbrainz.listen` as hi
+GROUP BY
+hi.user_name,hi.artist_name
+
+HAVING hi.artist_name =
+
+(SELECT
+list.artist_name
+FROM
+`listenbrainz.listenbrainz.listen` as list
+GROUP BY
+list.artist_name
+HAVING
+list.artist_name = 'Mariah Carey')
+*/ /*
+SELECT
+list.user_name, cast(count(listened_at) AS INT64) as hello ,list.artist_name
+FROM
+`listenbrainz.listenbrainz.listen` as list
+GROUP BY
+list.user_name
+HAVING
+list.artist_name = (SELECT
+list.artist_name
+FROM
+`listenbrainz.listenbrainz.listen` as list
+WHERE
+list.artist_name = 'Mariah Carey')
+*/
+/*SELECT
+  DISTINCT COUNT(list.user_name) AS users,
+  list.artist_name AS art
+FROM
+  `listenbrainz.listenbrainz.listen` AS list
+GROUP BY
+  art
+HAVING
+  art = 'Mariah Carey'
+  */
+
+  SELECT *
+  FROM
+  `listenbrainz.listenbrainz.listen`
+  LIMIT 10;
+
+
+----------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE TABLE
+`mfirst-360300.mydb.Produce`
+(item STRING,
+category STRING,
+purchases INT64)
+;
+-----------------------------------------------------------------------------Creating a table^^
+INSERT INTO 
+`mfirst-360300.mydb.Produce`
+(item,category,purchases)
+VALUES
+('kale', 'vegetable',23),
+('banana','fruit',2),
+('cabbage','vegetable', 9),
+('apple','fruit',8),
+('leek','vegetable',2),
+('lettuce','vegetable',10)
+;
+-----------------------------------------------------------------------------Inserting Values into a table
+
+-- Q1. What are the total produce purchases?
+
+  SELECT
+    item,
+    category,
+    purchases,
+    SUM(purchases) OVER() AS total_purchases
+  FROM
+    `mfirst-360300.mydb.Produce`
+;
+-----------------------------------------------------------------------------Window function over all rows^^
+
+--Q2. What are the category total purchases as well as grand total for all purchases?
+
+SELECT
+  item,
+  category,
+  purchases,
+  SUM(purchases) OVER () AS Grand_Total,
+  SUM(purchases) 
+  OVER (
+    PARTITION BY category -- used for subtotals |how to group the rows for SUM()|
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING-- what rows to include in the calculation
+       ) AS Category_Purchases
+FROM
+`mfirst-360300.mydb.Produce`
+ORDER BY
+Category_Purchases
+;
+---------------------------------------------------------------Partition By and row specification (subtotals)^^
+
+-- Q3. What is the running total purchases for each product category?
+
+SELECT
+item,
+category,
+purchases,
+SUM(purchases)
+OVER(
+  PARTITION BY category -- splits function by category
+  ORDER BY category, purchases -- order by ensures running total starts at lowest purchase amount
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW -- running totals want current row and unbounded preceding
+    ) AS running_total
+FROM
+`mfirst-360300.mydb.Produce`
+;
+
+--------------------------------------------------------------------------- Running totals^^
+
+SELECT
+SUM(purchases)
+FROM
+`mfirst-360300.mydb.Produce`
+;
+--------------------------------------------------------------------------- Im not really sure (ignore)^^
+
+-- Q4. What is the product revenue for each order item, subtotal revenue for each product, and the grand total revenue? (styssql)
+
+SELECT
+prod.prod_id,
+ord.quantity,
+ord.order_item,
+ord.order_num,
+ord.item_price,
+ROUND(ord.quantity * ord.item_price,3) as item_revenue,
+SUM(ord.quantity * ord.item_price)
+OVER(
+PARTITION BY prod.prod_id
+) AS prod_total_revenue,
+SUM(ord.quantity * ord.item_price) OVER() AS total_revenue
+
+FROM
+`mfirst-360300.styssql.products` as prod
+INNER JOIN
+`mfirst-360300.styssql.order_items` as ord
+ON 
+ord.prod_id = prod.prod_id
+ORDER BY
+prod_id, order_item
+;
+--------------------------------------------------------------------------- Styssql Windows practice^^
+
+SELECT
+√ä√ä*
+FROM
+√ä√ä`mfirst-360300.mydb.dm_covid19`
+WHERE
+√ä√ädate√ä=√ä'2022-10-01'
+ORDER√äBY
+√ä√äconfirmed_cases√äDESC
+;
+-----------------------------------------------------------------------------------------------------
+# Q: Which counties in Colorado are above or below the average number of county cases?
+-- We will feature enginner a column, Avg_Flag, to mark counties as 'Above Avg' or 'Below Avg' total cases
+ ---------------------------------------------------------------------------------------------------------
+
+SELECT
+  state,
+  county_name,
+  confirmed_cases,
+  -- Subquery to calculate the average cases across counties 
+  ROUND((SELECT AVG(confirmed_cases) FROM `mfirst-360300.mydb.dm_covid19` WHERE date = '2022-10-01')
+        ,2) as avgCases,
+    
+   -- Case statement to create the Avg_Flag Column 
+    CASE
+      WHEN confirmed_cases >
+      (SELECT AVG(confirmed_cases) FROM `mfirst-360300.mydb.dm_covid19` WHERE date = '2022-10-01')
+       THEN 'Above Avg'
+       ELSE 'Below Avg'  -- We don't need to repeat the subquery here we can just use ELSE
+    END AS Avg_Flag
+    
+FROM
+  `mfirst-360300.mydb.dm_covid19` 
+WHERE
+  date = '2022-10-01'
+GROUP BY
+  state,
+  county_name,
+  confirmed_cases
+ORDER BY
+  county_name 
+;
+-----------------------------------------------------------------------------------------------------------
+-- To look at a small 14 day window for Boulder County...
+-- 7 day avg cases
+-----------------------------------------------------------------------------------------------------------
+SELECT
+county_name,
+date,
+dailyCases,
+ROUND(AVG(dailyCases) OVER(county_ma7),2) AS _7dayAvg_DailyCases,
+dailyDeaths,
+ROUND(AVG(dailyDeaths) OVER(county_ma7),2) AS _7dayAvg_DailyDeaths
+FROM
+`mfirst-360300.mydb.dm_covid19` as co
+WHERE
+county_name = 'Boulder County ' AND date between '2022-2-1' AND '2022-2-15'
+WINDOW
+county_ma7 AS
+(PARTITION BY county_name ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+;
+
+
+/* Subquery notes */
+/*What are the customer ids that ordered a product id of "RGAN01"*/
+
+
+
+/* How do we find all the products with a product id of "RGAN01"*/
+
+/*SELECT
+oi.order_num
+FROM
+`mfirst-360300.styssql.order_items` as oi
+WHERE
+oi.prod_id = "RGAN01"*/
+
+/* what customers are associated with the products from the previous query?*/
+
+/*SELECT
+od.cust_id
+FROM
+`mfirst-360300.styssql.orders` as od
+WHERE
+od.order_num in (20008, 20007)*/
+
+
+/* do it better */
+
+/*SELECT
+od.cust_id
+FROM
+`mfirst-360300.styssql.orders` as od
+WHERE
+od.order_num IN 
+
+/*include subquery to filter data*/
+/*(SELECT
+oi.order_num
+FROM
+`mfirst-360300.styssql.order_items` as oi
+WHERE
+oi.prod_id = "RGAN01")*/
+
+/*SELECT
+cust.cust_id,
+cust.cust_name as name
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE
+cust.cust_id IN 
+    (SELECT
+    od.cust_id
+    FROM
+    `mfirst-360300.styssql.orders` as od
+    WHERE
+    od.order_num IN
+            (
+              SELECT
+              oi.order_num
+        
+              FROM
+              `mfirst-360300.styssql.order_items` as oi
+
+              WHERE
+              oi.prod_id = "RGAN01"
+
+            )
+            
+    
+    
+    
+    
+    )
+*/
+
+/* JOINS */
+
+/*SELECT
+cust.cust_id, 
+cust.cust_name,
+cust.cust_address,
+cust.cust_city,
+ord.order_num,
+ord.order_date
+FROM
+`mfirst-360300.styssql.customers` as cust,
+`mfirst-360300.styssql.orders` as ord
+
+/* one way to create a join is in the where clause*/
+
+/*
+WHERE
+cust.cust_id = ord.cust_id
+*/
+
+
+/*
+SELECT
+cust.cust_id, 
+cust.cust_name,
+cust.cust_address,
+cust.cust_city,
+ord.order_num,
+ord.order_date
+FROM
+`mfirst-360300.styssql.customers` as cust
+INNER JOIN
+`mfirst-360300.styssql.orders` as ord
+ON
+cust.cust_id = ord.cust_id
+WHERE
+cust_name = "Village Toys"
+*/
+
+                                            /*
+                                            SELECT
+                                            COUNT (vend.vend_id),vend.vend_name
+                                            FROM
+                                            `mfirst-360300.styssql.vendors` as vend
+                                            INNER JOIN
+                                            `mfirst-360300.styssql.products` as prod
+                                            ON
+                                            vend.vend_id = prod.vend_id
+                                            GROUP BY
+
+                                            (
+                                            SELECT
+                                            prod.vend_id,oi.prod_id, AVG (oi.quantity)
+                                            FROM
+                                            `mfirst-360300.styssql.products` as prod
+                                            INNER JOIN
+                                            `mfirst-360300.styssql.order_items` as oi
+                                            ON
+                                            prod.prod_id = oi.prod_id
+                                            GROUP BY
+                                            prod.vend_id, oi.prod_id, oi.quantity
+                                            )
+                                            */
+
+/*SELECT
+vend.vend_id, vend.vend_name, prod.prod_id, prod.prod_name
+FROM
+`mfirst-360300.styssql.vendors` as vend
+INNER JOIN
+`mfirst-360300.styssql.products` as prod
+ON
+vend.vend_id = prod.vend_id
+GROUP BY
+vend.vend_id,vend.vend_name,prod.prod_id,prod.prod_name
+*/
+
+
+/*SELECT
+cust.cust_id, oi.prod_id
+FROM
+`mfirst-360300.styssql.customers` cust
+LEFT JOIN
+`mfirst-360300.styssql.orders` as od
+  ON cust.cust_id = od.cust_id
+LEFT JOIN
+`mfirst-360300.styssql.order_items` as oi
+  ON od.order_num = oi.order_num
+WHERE
+oi.prod_id = 'BR01' 
+
+INTERSECT DISTINCT
+
+SELECT
+od.cust_id, oi.prod_id
+FROM
+`mfirst-360300.styssql.orders` as od
+LEFT JOIN
+`mfirst-360300.styssql.order_items` as oi
+  ON od.order_num = oi.order_num
+WHERE
+oi.prod_id = 'BR03' 
+
+*/
+
+/* Q1: who are the customer contacts from illinois, indiana, or michigan or work for fun4all
+include customer name, contact name, email, and state*/
+
+/*
+SELECT
+cust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_state
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE
+cust.cust_state IN ('IL','IN','MI')
+
+UNION DISTINCT
+
+SELECT
+cust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_state
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE
+cust.cust_name = 'Fun4All'
+
+*/
+
+/* Q1: who are the customer contacts from illinois, indiana, or michigan or work for fun4all
+include customer name, contact name, email, and state
+include potential duplicates*/
+
+SELECT
+cust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_state
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE
+cust.cust_state IN ('IL','IN','MI')
+
+UNION ALL
+
+SELECT
+cust.cust_name, cust.cust_contact, cust.cust_email,cust.cust_state
+FROM
+`mfirst-360300.styssql.customers` as cust
+WHERE
+cust.cust_name = 'Fun4All'
+
+
+---------------------------------------------------------------------------------------------------------
+--CASE(), COALESCE(), CAST()
+---------------------------------------------------------------------------------------------------------
+--Using Case to perform feature engineering
+--Case allows us to change a value to another value based on one or more conditions
+--CASE works similarly to IF-ELIF-ELSE statements
+--the first condition is evaluated first, then the second an so on
+--the general syntax for CASE is shown below
+
+/*
+CASE
+  WHEN [condition] THEN [value]
+  WHEN [condition] THEN [value]
+  .
+  .
+  .
+  ELSE [default value]
+  END AS [alias for the feature/column]
+*/
+---------------------------------------------------------------------------------------------------------
+#Task: create a feature that will classify order quantities as follows:
+--Any quantity 100+ as "High"
+--Any quantity below 100 as "Low"
+---------------------------------------------------------------------------------------------------------
+/*
+SELECT
+order_num,
+order_item,
+quantity,
+--Add the flag for high or low order quantity
+CASE
+  WHEN quantity >= 100 THEN 'High'
+  WHEN quantity <= 100 THEN 'Low'
+  END AS quantityflag
+FROM
+`mfirst-360300.styssql.order_items`
+
+*/
+
+---------------------------------------------------------------------------------------------------------
+#Using case statement to perform conditional calculations on our data
+#Q: How many order items are in the 'High' quantityflag, the 'Low' quantityflag?
+--Define 'High' and 'Low' based on the previous problem
+--some people call this the "zero trick" where our condition converts values to 1 if the condition is met and 0 otherwise
+---------------------------------------------------------------------------------------------------------
+/*
+SELECT
+SUM(CASE WHEN quantity >= 100 THEN 1 ELSE 0 END) as highCount,
+SUM(CASE WHEN quantity < 100 THEN 1 ELSE 0 END) as lowCount
+FROM
+`mfirst-360300.styssql.order_items`
+*/
+
+---------------------------------------------------------------------------------------------------------
+#prior question using a Count()
+--known as the 'NULL' case trick
+--condition specifies to count a value if met or ignore with NULL if not
+---------------------------------------------------------------------------------------------------------
+/*
+SELECT
+COUNT(CASE WHEN quantity >= 100 THEN order_item ELSE NULL END) as highCount,
+COUNT(CASE WHEN quantity < 100 THEN order_item ELSE NULL END) as lowCount
+FROM
+`mfirst-360300.styssql.order_items`
+
+*/
+
+---------------------------------------------------------------------------------------------------------
+--Using Rollup() to show various aggregations in your result set
+--ROLLUP allows us to get subtotal rows (a.k.a. super-aggregate rows) and a grand total row
+--Roollup works by aggregating the grouping sets in a group by clause
+----- a grouping set is just the set of column you group by
+--Rollup will generate subtotals for all combinations of your grouping set
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+#Q: what are the order quantity totals for company, order numbers, and order items
+--we could use subqueries to get all the different aggregations 
+--OR... we could use ROLLUP()
+---------------------------------------------------------------------------------------------------------
+/*
+SELECT
+order_num,
+order_item,
+sum(quantity) AS totQTY
+FROM
+`mfirst-360300.styssql.order_items`
+GROUP BY
+ROLLUP (
+  order_num,
+  order_item)
+ORDER BY
+order_num,
+order_item
+
+*/
+
+----------------------------------------------------------------
+#use a subquery to answer the previous problem
+
+/*
+SELECT
+ordI.order_num,
+ordI.order_item,
+sum(quantity) as lineQTY,
+ordqty, #pulled from in line view
+-- write a subquery for the overall company values 
+(SELECT SUM(quantity)FROM `mfirst-360300.styssql.order_items`) as compTot
+
+FROM
+`mfirst-360300.styssql.order_items` as ordI
+    -- write in line view to get order num subtotals
+INNER JOIN
+(SELECT
+  order_num,
+  sum(quantity) as ordqty
+  FROM
+  `mfirst-360300.styssql.order_items`
+  GROUP BY
+  order_num
+) as ordTot
+ON ordI.order_num = ordTot.order_num
+GROUP BY
+order_num,order_item,ordqty
+ORDER BY
+ordI.order_num
+
+*/
+
+/*
+SELECT
+*,
+ROUND(quantity *item_price,2) as itemrev,
+ROUND(SUM(quantity * item_price) OVER(PARTITION BY prod_id),2) as prod_tot_rev,
+ROUND(SUM(quantity*item_price)OVER(),2) as total_revenue
+FROM
+`mfirst-360300.styssql.order_items`
+
+ORDER BY
+prod_id,
+order_item
+*/
+
+
+/*
+ALTER TABLE
+`mydb.covid_county_population_usafacts`
+ADD COLUMN
+county_fips STRING
+*/
+ 
+/*
+ALTER TABLE
+`mydb.covid_county_population_usafacts`
+DROP COLUMN
+countyFIPS
+*/
+
+/*
+SELECT
+*
+FROM
+`mydb.covid_county_population_usafacts`
+WHERE
+COUNTY_NAME = 'Autauga County'
+*/
+
+/*
+UPDATE
+  mydb.covid_county_population_usafacts
+SET
+  -- Inserting proper county_fips codes and converting to string based on countyFIPS length
+  -- Note the second condition converts the Statewide Unallocated counties
+   county_fips = 
+  CASE 
+    WHEN LENGTH(CAST(countyFIPS AS STRING))=4 THEN CONCAT('0',CAST(countyFIPS AS STRING))
+    WHEN LENGTH(CAST(countyFIPS AS STRING))=1 THEN CONCAT('0000',CAST(countyFIPS AS STRING))
+    ELSE CAST(countyFIPS AS STRING) END
+WHERE
+ county_fips IS NULL
+ */
+
+ /*
+CREATE TABLE
+`mydb.covid_county_population_usafacts`
+AS
+SELECT * FROM `mydb.covid_copy`
+*/
+
+/*
+SELECT
+*
+FROM
+`bigquery-public-data.covid19_usafacts.summary` as org
+INNER JOIN
+`mydb.covid_county_population_usafacts` as db
+  ON org.county_fips_code = db.county_fips
+ AND
+ org.state = db.State
+ WHERE
+date < '2022-10-02'
+*/
+
+/*
+SELECT
+*,
+ROUND(quantity *item_price,2) as itemrev,
+ROUND(SUM(quantity * item_price) OVER(PARTITION BY prod_id),2) as prod_tot_rev,
+ROUND(SUM(quantity*item_price)OVER(),2) as total_revenue
+FROM
+`mfirst-360300.styssql.order_items`
+
+ORDER BY
+prod_id,
+order_item
+*/
+
+CREATE OR REPLACE TABLE
+`mydb.dw_covid19`
+
+AS
+SELECT
+org.*,
+sums.population
+FROM
+`bigquery-public-data.covid19_usafacts.summary` as org
+
+INNER JOIN
+`mfirst-360300.mydb.covid_county_population_usafacts` as sums
+ON
+org.county_fips_code = sums.county_fips
+AND
+org.state = sums.State
+WHERE
+org.date <= '2022-10-01'
+
+/* Who are the customers that have purchased two specific products*/
+
+/*Q1: show cust codes and names for anyone who has purchased product codes of 13-Q2/P2 and 23109-HB*/
+
+/* done in two seperate querys*/
+/*
+SELECT DISTINCT
+inv.CUS_CODE
+FROM
+
+`mfirst-360300.SaleCo.invoice` as inv
+INNER JOIN
+`mfirst-360300.SaleCo.line` as line
+ON
+inv.INV_NUMBER = line.INV_NUMBER
+WHERE
+line.P_CODE = '13-Q2/P2' ;
+
+SELECT DISTINCT
+inv.CUS_CODE
+FROM
+
+`mfirst-360300.SaleCo.invoice` as inv
+INNER JOIN
+`mfirst-360300.SaleCo.line` as line
+ON
+inv.INV_NUMBER = line.INV_NUMBER
+WHERE
+line.P_CODE = '23109-HB' 
+*/
+
+
+
+
+/* done using subquery in from*/
+
+SELECT DISTINCT
+cust.CUS_CODE, cust.CUS_FNAME, cust.CUS_LNAME
+FROM
+`mfirst-360300.SaleCo.customer` as cust
+INNER JOIN 
+
+(SELECT DISTINCT
+  inv.CUS_CODE
+FROM
+  `mfirst-360300.SaleCo.invoice` as inv
+INNER JOIN
+  `mfirst-360300.SaleCo.line` as line
+ON
+  inv.INV_NUMBER = line.INV_NUMBER
+WHERE
+  line.P_CODE = '13-Q2/P2'
+) as firstprod
+ON
+cust.CUS_CODE = firstprod.CUS_CODE
+
+INNER JOIN
+
+(
+SELECT DISTINCT
+  inv.CUS_CODE
+FROM
+  `mfirst-360300.SaleCo.invoice` as inv
+INNER JOIN
+  `mfirst-360300.SaleCo.line` as line
+ON
+  inv.INV_NUMBER = line.INV_NUMBER
+WHERE
+  line.P_CODE = '23109-HB'
+
+) as secondprod
+
+ON firstprod.CUS_CODE = secondprod.CUS_CODE
+
+
+/*
+SELECT DISTINCT
+sum(confirmed_cases)
+
+FROM
+`mfirst-360300.mydb.dm_covid19`
+
+WHERE
+date = '2022-10-1'
+*/
+
+/*CREATE OR REPLACE TABLE
+`mfirst-360300.mydb.dm_covid19`
+AS
+SELECT
+*
+FROM
+`mfirst-360300.mydb.dw_covid19`
+WHERE
+state = 'CO'
+*/
+
+/*SELECT
+*
+FROM
+`mfirst-360300.mydb.dm_covid19`
+*/
+
+/*SELECT
+IFNULL(county, 'stateTOTAL')
+*/
+
+/*
+SELECT
+state,
+ROUND(AVG(confirmed_cases)),
+FROM
+`mfirst-360300.mydb.dm_covid19`
+*/
+
+/*
+WINDOW
+ROLLUP
+CASE
+IFNULL replacement
+*/
+
+SELECT
+*, AVG(confirmed_cases) OVER( PARTITION BY county_name ORDER BY date DESC
+ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as avgs
+FROM
+`mfirst-360300.mydb.dm_covid19`
+WHERE
+date = '2022-10-1'
+AND
+county_name = 'Boulder County'
+
+
+
+/* Data Sets*/
+/* `bigquery-public-data.bls.employment_hours_earnings`*/
+/* `bigquery-public-data.noaa_icoads.icoads_core_2007` */
+/* `bigquery-public-data.cfpb_complaints.complaint_database` */
+/* `bigquery-public-data.census_bureau_usa.population_by_zip_2010` */
+/* `bigquery-public-data.noaa_significant_earthquakes.earthquakes` */
+
+/*
+SELECT
+recalling_firm, COUNT (recall_number) as recalls
+FROM
+`bigquery-public-data.fda_drug.drug_enforcement`
+GROUP BY
+recalling_firm
+ORDER BY
+recalls DESC
+*/
+
+/*
+SELECT classification,
+EXTRACT (month FROM report_date) as Month, COUNT (recall_number) as recalls
+FROM
+`bigquery-public-data.fda_drug.drug_enforcement`
+GROUP BY
+Month,
+classification
+ORDER BY
+classification ASC,
+Month ASC
+*/
+
+/*SELECT
+COUNT(DISTINCT list.user_name) as users, COUNT (listened_at) as toListen
+FROM
+`listenbrainz.listenbrainz.listen` as list
+WHERE
+list.artist_name LIKE "Santana" */
+
+/*
+SELECT
+artist_name, COUNT (listened_at) as f,track_name, COUNT(DISTINCT user_name)
+FROM
+`listenbrainz.listenbrainz.listen`
+WHERE 
+artist_name = "Santana"
+GROUP BY
+track_name, artist_name
+ORDER BY
+f DESC
+*/
+
+/*
+SELECT
+ROUND (AVG(sea_level_pressure),2),month
+FROM
+ `bigquery-public-data.noaa_icoads.icoads_core_2016` 
+ Group BY 
+ month
+ HAVING 
+ month=6
+*/
+
+/*
+SELECT DISTINCT
+product, EXTRACT ( YEAR FROM date_received) as hello,COUNT (consumer_complaint_narrative) as f
+FROM
+`bigquery-public-data.cfpb_complaints.complaint_database`
+GROUP BY 
+product, issue, date_received
+HAVING 
+hello = 2020
+ORDER BY
+f ASC
+*/
+
+/*
+SELECT
+month, ship_course, AVG (ship_speed)
+FROM
+ `bigquery-public-data.noaa_icoads.icoads_core_2017`
+ GROUP BY 
+ month, ship_course
+ HAVING
+ (month = 1 OR month = 2) AND (ship_course = 1 OR ship_course = 2)
+ */
+/*
+ SELECT
+country as c,AVG (damage_millions_dollars) as d
+ FROM
+ `bigquery-public-data.noaa_significant_earthquakes.earthquakes`
+ GROUP BY 
+ c
+ HAVING
+ c = "MEXICO"
+ */
+
+/*
+SELECT
+country as c,AVG (damage_millions_dollars) as d, eq_primary, year
+ FROM
+ `bigquery-public-data.noaa_significant_earthquakes.earthquakes`
+ GROUP BY 
+ c, eq_primary, year
+ HAVING
+ (year >= 2010 AND year <= 2015) AND
+ eq_primary > 4 AND c = "ITALY"
+
+ */
+
+ /*
+ SELECT
+zipcode, gender, population, AVG (population) as avge
+ FROM
+ `bigquery-public-data.census_bureau_usa.population_by_zip_2000`
+ GROUP BY
+ gender, population, zipcode
+ HAVING
+ gender = "female" AND
+ avge > 2000 AND population > 50000
+ */
+
+/*
+ SELECT
+gender, zipcode, population as f
+ FROM
+`bigquery-public-data.census_bureau_usa.population_by_zip_2000`
+GROUP BY
+gender, population,zipcode
+HAVING
+gender = "female" AND f > 50000 
+ORDER BY
+f DESC
+*/
+
+SELECT DISTINCT
+country√äas√äc,AVG√ä(damage_millions_dollars)√äas√äd,√äeq_primary,√äyear
+√äFROM
+√ä`bigquery-public-data.noaa_significant_earthquakes.earthquakes`
+√äGROUP√äBY√ä
+√äc,√äeq_primary,√äyear
+√äHAVING
+√ä(year√ä>=√ä2010√äAND√äyear√ä<=√ä2015)√äAND
+√äeq_primary√ä>√ä4√äAND√äc√ä=√ä"ITALY"
+
+
+/*`noaa_icoads.icoads_core_2007`*/
+/*`chicago_taxi_trips.taxi_trips`*/
+/*`mfirst-360300.SaleCo.customers`*/
+/*`mfirst-360300.ConstructCo.assignment`*/
+
+    /*SELECT
+    od.cust_id
+    FROM
+    `mfirst-360300.styssql.orders` as od
+    WHERE
+    od.order_num IN 
+
+    (SELECT
+    oi.order_num
+    FROM
+    `mfirst-360300.styssql.order_items` as oi
+    WHERE
+    oi.prod_id = "RGAN01") */
+
+    /*
+    SELECT
+    cust.cust_id,
+    cust.cust_name as name
+    FROM
+    `mfirst-360300.styssql.customers` as cust
+    WHERE
+    cust.cust_id IN 
+        (SELECT
+        od.cust_id
+        FROM
+        `mfirst-360300.styssql.orders` as od
+        WHERE
+        od.order_num IN
+                (
+                  SELECT
+                  oi.order_num
+            
+                  FROM
+                  `mfirst-360300.styssql.order_items` as oi
+
+                  WHERE
+                  oi.prod_id = "RGAN01"
+
+                ) 
+        )
+    */
+
+
+
+/* JOINS */
+
+/*
+SELECT
+cust.cust_id, 
+cust.cust_name,
+cust.cust_address,
+cust.cust_city,
+ord.order_num,
+ord.order_date
+FROM
+`mfirst-360300.styssql.customers` as cust
+INNER JOIN
+`mfirst-360300.styssql.orders` as ord
+ON
+cust.cust_id = ord.cust_id
+WHERE
+cust_name = "Village Toys"
+*/
+
+
+/*`mfirst-360300.styssql.order_items`*/
+/*`mfirst-360300.SaleCo.customers`*/
+/*`mfirst-360300.ConstructCo.assignment`*/
+
+/*SELECT
+cust.cust_id, 
+cust.cust_name,
+cust.cust_address,
+cust.cust_city,
+ord.order_num,
+ord.order_date
+FROM
+`mfirst-360300.styssql.customers` as cust
+INNER JOIN
+`mfirst-360300.styssql.orders` as ord
+ON
+cust.cust_id = ord.cust_id
+WHERE
+cust_name = "Village Toys"
+*/
+
+/*SELECT 
+  vend.vend_id,
+  vend.vend_name,
+  prod.prod_id,
+  prod.prod_name  
+FROM
+  `styssql.vendors` as vend
+  INNER JOIN
+  `styssql.products` as prod
+  ON vend.vend_id = prod.vend_id
+  LEFT JOIN
+  `styssql.order_items` as OrdI
+  ON prod.prod_id = ordI.prod_id
+WHERE
+  OrdI.order_num IS NULL
+GROUP BY
+ vend.vend_id,
+  vend.vend_name,
+  prod.prod_id,
+  prod.prod_name
+ORDER BY
+  vend_name,
+  prod_name
+*/
+
+# this is a comment
+/* this is a comment too*/
+/*
+SELECT
+  m.prod_name,prod_id,prod_price,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+WHERE
+  m.vend_id = 'DLL01' AND m.prod_price <= 4
+*/
+
+/*
+SELECT
+  m.prod_name,prod_id,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+WHERE
+  m.vend_id = 'DLL01' OR m.vend_id = 'BRS01'
+*/
+
+/*
+These two do the same thing^v
+
+SELECT
+  m.prod_name,prod_id,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+WHERE
+  m.vend_id IN ('DLL01', 'BRS01')
+
+*/
+/*
+SELECT
+  m.prod_name,prod_id,prod_price,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+WHERE
+  (m.vend_id = 'DLL01' OR  m.vend_id = 'BRS01') AND m.prod_price > 10
+*/
+/*
+SELECT
+  m.prod_name,prod_id,prod_price,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+
+  WHERE
+  m.prod_name LIKE 'Fish%'
+*/
+/*
+SELECT
+  m.prod_name,prod_id,prod_price,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+
+  WHERE
+  m.prod_name LIKE '%Bean Bag%'
+*/
+
+/*
+  SELECT
+  m.prod_name,prod_id,prod_price,vend_id
+
+FROM
+  `mfirst-360300.styssql.products` as m
+
+  WHERE
+  m.prod_name LIKE '_ inch%' OR  m.prod_name LIKE '__inch'
+*/
+
+SELECT
+prod.browser
+FROM
+`bigquery-public-data.google_analytics_sample` as prod
+
+
+CREATE VIEW
+`mfirst-360300.styssql.prodCustJoin`
+AS
+SELECT
+cust.cust_name,
+cust.cust_contact,
+ordI.prod_id
+FROM
+`mfirst-360300.styssql.customers` AS cust
+INNER JOIN
+`mfirst-360300.styssql.orders` AS ord
+ON
+cust.cust_id = ord.cust_id
+INNER JOIN
+`mfirst-360300.styssql.order_items` as ordI
+ON 
+ord.order_num = ordI.order_num
+
+
+
+
