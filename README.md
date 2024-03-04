@@ -13,7 +13,7 @@ and what it is trying to accomplish.
 The file within this repository contains examples of SQL work I have done in the past formatted as a text file. Within it are instances of basic
 select, from, where, and having clauses to disect bigquery public data as well as example data provided by the course instructor mirroring common
 company records. The example company data includes tables for customers, employees, invoices, products, and vendors. Beyond simple analysis with
-select, from, where, and having, I utilized Joins, Unions, Rollup functions, coalesce, subqueries, and inline views to make pertinant discoveries
+select, from, where, and having, I utilized Joins, Unions, Rollup functions, coalesce, subqueries, and inline views to make pertinent discoveries
 while exploring the information. My exposure extended to DDL examples where I learned to Create, Replace, and Alter Tables as well as Insert, Update, and 
 Delete. Furthermore, my experience extends to the creation of CTEs to create temporary result sets only for use within the context of the larger query
 and permanent views that would serve well in a real world context to dispatch data to various segments of a larger team so that they would only have
