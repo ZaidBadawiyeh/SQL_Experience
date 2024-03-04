@@ -1,6 +1,6 @@
 # SQL Query Data Analytics Practice
 
-**---------------------------------------------------------------------------------------------------------------------------------
+**-------------------------------------------------------------------------------------------------------------------------------------
 This repository stores a number of SQL queries I did while in an advanced SQL class during my studies at the university of Colorado Boulder.
 The file that exists within is formatted as text and contains many examples of exposure I've had to the language coalesced together. The reason this
 file is in this format is because much of it was done in Google BigQuery, the google cloud-based IDE for SQL, and these cloud files cannot be exported
@@ -8,7 +8,7 @@ in the same way the Python, C++, and R files can. Instead, I took the work I did
 large text file. While this can be confusing to disect, you will find notes throughout that indicate problems I was trying to solve or techniques
 that I was looking to get comfortable with. Despite the poor formatting, I am comfortable explaining in lamens terms every aspect of this code
 and what it is trying to accomplish.
-----------------------------------------------------------------------------------------------------------------------------------**
+--------------------------------------------------------------------------------------------------------------------------------------**
 
 The file within this repository contains examples of SQL work I have done in the past formatted as a text file. Within it are instances of basic
 select, from, where, and having clauses to disect bigquery public data as well as example data provided by the course instructor mirroring common
